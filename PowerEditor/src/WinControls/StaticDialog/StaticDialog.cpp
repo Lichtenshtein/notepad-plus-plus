@@ -117,6 +117,25 @@ bool StaticDialog::moveForDpiChange()
 	return false;
 }
 
+void StaticDialog::goToTopRight(UINT swpFlags)
+{
+	RECT rc{};
+	::GetClientRect(_hParent, &rc);
+
+	int dlgWidth = _rc.right - _rc.left;
+	int dlgHeight = _rc.bottom - _rc.top;
+
+	POINT rightTop{};
+	rightTop.x = rc.right - dlgWidth/2;
+	rightTop.y = rc.top + dlgHeight/2;
+	::ClientToScreen(_hParent, &rightTop);
+
+	int x = rightTop.x - dlgWidth/2;
+	int y = rightTop.y - dlgHeight/2;
+
+	::SetWindowPos(_hSelf, HWND_TOP, x, y, dlgWidth, dlgHeight, swpFlags);
+}
+
 void StaticDialog::display(bool toShow) const
 {
 	if (toShow)
@@ -183,7 +202,7 @@ RECT StaticDialog::getViewablePositionRect(RECT testPositionRc) const
 		// rect would be at least partially visible on a monitor
 
 		::GetMonitorInfo(hMon, &mi);
-		
+
 		int margin = ::GetSystemMetrics(SM_CYBORDER) + ::GetSystemMetrics(SM_CYSIZEFRAME) + ::GetSystemMetrics(SM_CYCAPTION);
 
 		// require that the title bar of the window be in a viewable place so the user can see it to grab it with the mouse
@@ -208,7 +227,7 @@ RECT StaticDialog::getViewablePositionRect(RECT testPositionRc) const
 	if (!rectPosViewableWithoutChange)
 	{
 		// reposition rect so that it would be viewable on current/nearest monitor, centering if reasonable
-		
+
 		LONG testRectWidth = testPositionRc.right - testPositionRc.left;
 		LONG testRectHeight = testPositionRc.bottom - testPositionRc.top;
 		LONG monWidth = mi.rcWork.right - mi.rcWork.left;

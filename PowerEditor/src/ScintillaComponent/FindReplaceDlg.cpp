@@ -230,12 +230,13 @@ void Searching::displaySectionCentered(size_t posStart, size_t posEnd, Scintilla
 	pEditView->execute(SCI_ENSUREVISIBLE, pEditView->execute(SCI_LINEFROMPOSITION, posStart));
 	pEditView->execute(SCI_ENSUREVISIBLE, pEditView->execute(SCI_LINEFROMPOSITION, posEnd));
 
+	auto linesVisible = pEditView->execute(SCI_LINESONSCREEN);
+
 	// Jump-scroll to center, if current position is out of view
-	pEditView->execute(SCI_SETVISIBLEPOLICY, CARET_JUMPS | CARET_EVEN);
+	pEditView->execute(SCI_SETVISIBLEPOLICY, VISIBLE_SLOP, linesVisible - 5 - 1);
 	pEditView->execute(SCI_ENSUREVISIBLEENFORCEPOLICY, pEditView->execute(SCI_LINEFROMPOSITION, isDownwards ? posEnd : posStart));
 	// When searching up, the beginning of the (possible multiline) result is important, when scrolling down the end
 	pEditView->execute(SCI_GOTOPOS, isDownwards ? posEnd : posStart);
-	pEditView->execute(SCI_SETVISIBLEPOLICY, CARET_EVEN);
 	pEditView->execute(SCI_ENSUREVISIBLEENFORCEPOLICY, pEditView->execute(SCI_LINEFROMPOSITION, isDownwards ? posEnd : posStart));
 
 	// Adjust so that we see the entire match; primarily horizontally
@@ -372,7 +373,7 @@ void FindReplaceDlg::create(int dialogID, bool isRTL, bool msgDestParent, bool t
 	}
 	else
 	{
-		goToCenter(swpFlags);
+		goToTopRight(swpFlags);
 	}
 
 	if (nppGUI._findWindowLessMode)
@@ -4383,27 +4384,6 @@ void FindReplaceDlg::setStatusbarMessage(const wstring & msg, FindStatus status,
 	{
 		if (!NppParameters::getInstance().getNppGUI()._muteSounds)
 			::MessageBeep(0xFFFFFFFF);
-
-		FLASHWINFO flashInfo{};
-		flashInfo.cbSize = sizeof(FLASHWINFO);
-		flashInfo.hwnd = isVisible()?_hSelf:GetParent(_hSelf);
-		flashInfo.uCount = 3;
-		flashInfo.dwTimeout = 100;
-		flashInfo.dwFlags = FLASHW_ALL;
-		FlashWindowEx(&flashInfo);
-	}
-	else if (status == FSTopReached || status == FSEndReached)
-	{
-		if (!isVisible())
-		{
-			FLASHWINFO flashInfo{};
-			flashInfo.cbSize = sizeof(FLASHWINFO);
-			flashInfo.hwnd = GetParent(_hSelf);
-			flashInfo.uCount = 2;
-			flashInfo.dwTimeout = 100;
-			flashInfo.dwFlags = FLASHW_ALL;
-			FlashWindowEx(&flashInfo);
-		}
 	}
 
 	if (isVisible())
