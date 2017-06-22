@@ -4536,7 +4536,7 @@ void Notepad_plus::updateStatusBar()
 	// these sections of status bar NOT updated by this function:
 	// STATUSBAR_DOC_TYPE , STATUSBAR_EOF_FORMAT , STATUSBAR_UNICODE_TYPE
 
-	size_t docLen = _pEditView->getCurrentDocLen();
+	size_t docLen = getCurrentDocCharCount(_pEditView->getCurrentBuffer()->getUnicodeMode());
 	intptr_t nbLine = _pEditView->execute(SCI_GETLINECOUNT);
 
 	wstring docLenStr = commafyInt(docLen);

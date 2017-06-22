@@ -2436,11 +2436,18 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 		{
 			if (wParam != WA_INACTIVE && _pEditView && _pNonEditView)
 			{
-				_pEditView->grabFocus();
-				auto x = _pEditView->execute(SCI_GETXOFFSET);
-				_pEditView->execute(SCI_SETXOFFSET, x);
-				x = _pNonEditView->execute(SCI_GETXOFFSET);
-				_pNonEditView->execute(SCI_SETXOFFSET, x);
+				bool finderExistsAndIsVisible = _findReplaceDlg.finderExistsAndIsVisible();
+
+				if (finderExistsAndIsVisible) {
+					_findReplaceDlg.focusOnFinder();
+				}
+				else {
+					_pEditView->grabFocus();
+					auto x = _pEditView->execute(SCI_GETXOFFSET);
+					_pEditView->execute(SCI_SETXOFFSET, x);
+					x = _pNonEditView->execute(SCI_GETXOFFSET);
+					_pNonEditView->execute(SCI_SETXOFFSET, x);
+				}
 			}
 			return TRUE;
 		}
