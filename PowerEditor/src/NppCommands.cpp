@@ -1710,6 +1710,12 @@ void Notepad_plus::command(int id)
 		}
 		break;
 
+        case IDM_SEARCH_HIDE_FOUND_RESULTS:
+        {
+            _findReplaceDlg.hideFinder();
+        }
+        break;
+
 		case IDM_SEARCH_VOLATILE_FINDNEXT :
 		case IDM_SEARCH_VOLATILE_FINDPREV :
 		{
@@ -1970,9 +1976,17 @@ void Notepad_plus::command(int id)
 			if (braceOpposite != -1)
 			{
 				if (id == IDM_SEARCH_GOTOMATCHINGBRACE)
-					_pEditView->execute(SCI_GOTOPOS, braceOpposite);
-				else
-					_pEditView->execute(SCI_SETSEL, std::min<intptr_t>(braceAtCaret, braceOpposite), std::max<intptr_t>(braceAtCaret, braceOpposite) + 1); // + 1 so we always include the ending brace in the selection.
+					// if the matching brace is below the braceAtCaret, add 1 so that the caret is on the right side of the braceOpposite
+					_pEditView->execute(SCI_GOTOPOS, braceOpposite > braceAtCaret ? braceOpposite + 1 : braceOpposite);
+				else {
+					// + 1 so we always include the ending brace in the selection.
+					if (braceAtCaret < braceOpposite) {
+						_pEditView->execute(SCI_SETSEL, braceAtCaret, braceOpposite + 1);
+					}
+					else {
+						_pEditView->execute(SCI_SETSEL, braceAtCaret + 1, braceOpposite);
+					}
+				}
 
 				// Update Scintilla's knowledge about what column the caret is in, so that if user
 				// does up/down arrow as first navigation after the brace-match operation,

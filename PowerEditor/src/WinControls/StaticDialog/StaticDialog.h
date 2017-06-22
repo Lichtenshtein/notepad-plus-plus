@@ -67,6 +67,8 @@ public :
 	void goToCenter(UINT swpFlags = SWP_SHOWWINDOW);
 	bool moveForDpiChange();
 
+	void goToTopRight(UINT swpFlags = SWP_SHOWWINDOW);
+
 	void display(bool toShow = true) const override;
 	void displayEnhanced(bool toShow) const;
 
