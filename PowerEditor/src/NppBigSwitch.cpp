@@ -738,6 +738,27 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 			return TRUE;
 		}
 
+		case NPPM_GETBUFFERSTATUS:
+		{
+			Buffer * b = MainFileManager.getBufferByID((BufferID)wParam);
+
+			if (b != NULL)
+			{
+				result = 0;
+				if (b->isReadOnly())
+					result |= BUFSTAT_READONLY;
+				if (b->isModified())
+					result |= BUFSTAT_MODIFIED;
+				if (b->isDirty())
+					result |= BUFSTAT_LOADEDDIRTY;
+			}
+			else
+			{
+				result = -1;
+			}
+			return result;
+		}
+
 		case WM_SIZE:
 		{
 			RECT rc;
