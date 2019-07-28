@@ -1829,6 +1829,7 @@ De tekst die in dit veld is geplakt, bevat onzichtbare tekens (mogelijk regelein
 			<userdefined-title-save value="Huidige syntaxis opslaan als..."/>
 			<userdefined-title-rename value="Huidige syntaxis hernoemen"/>
 			<summary value="Documentinformatie"/>
+			<summary-filelen value="Bestandsgrootte (in byte): "/>
 			<summary-filepath value="Volledig bestandspad: "/>
 			<summary-filecreatetime value="Aangemaakt: "/>
 			<summary-filemodifytime value="Gewijzigd: "/>
