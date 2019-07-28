@@ -2878,6 +2878,7 @@ void Notepad_plus::command(int id)
 					wstring filePathLabel = pNativeSpeaker->getLocalizedStrFromID("summary-filepath", L"Full file path: ");
 					wstring fileCreateTimeLabel = pNativeSpeaker->getLocalizedStrFromID("summary-filecreatetime", L"Created: ");
 					wstring fileModifyTimeLabel = pNativeSpeaker->getLocalizedStrFromID("summary-filemodifytime", L"Modified: ");
+					wstring fileLenLabel = pNativeSpeaker->getLocalizedStrFromID("summary-filelen", L"File length (in byte): ");
 
 					characterNumber += filePathLabel;
 					characterNumber += curBuf->getFullPathName();
@@ -2889,6 +2890,11 @@ void Notepad_plus::command(int id)
 
 					characterNumber += fileModifyTimeLabel;
 					characterNumber += curBuf->getFileTime(Buffer::ft_modified);
+					characterNumber += L"\r";
+
+					characterNumber += fileLenLabel;
+					characterNumber += commafyInt(static_cast<size_t>(fileLen)).c_str();
+					characterNumber += L"\r";
 					characterNumber += L"\r";
 				}
 				wstring nbCharLabel = pNativeSpeaker->getLocalizedStrFromID("summary-nbchar", L"Characters (without line endings): ");
