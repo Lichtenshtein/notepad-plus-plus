@@ -1828,6 +1828,7 @@ The text pasted into this field includes invisible (maybe line-ending) character
 			<userdefined-title-save value="Save Current Language Name As..."/>
 			<userdefined-title-rename value="Rename Current Language Name"/>
 			<summary value="Summary"/>
+			<summary-filelen value="File length (in byte): "/>
 			<summary-filepath value="Full file path: "/>
 			<summary-filecreatetime value="Created: "/>
 			<summary-filemodifytime value="Modified: "/>
