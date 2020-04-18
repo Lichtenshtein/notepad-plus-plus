@@ -355,6 +355,9 @@ void ShortcutMapper::fillOutBabyGrid()
 			::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_MODIFY), true);
 			::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_CLEAR), true);
 			::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_DELETE), false);
+			::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_MOVE_UP), false);
+			::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_MOVE_DOWN), false);
+			::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_SORT), false);
 		}
 		break;
 
@@ -384,6 +387,9 @@ void ShortcutMapper::fillOutBabyGrid()
             ::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_MODIFY), shouldBeEnabled);
             ::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_CLEAR), shouldBeEnabled);
             ::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_DELETE), shouldBeEnabled);
+			::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_MOVE_UP), shouldBeEnabled);
+			::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_MOVE_DOWN), shouldBeEnabled);
+			::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_SORT), shouldBeEnabled);
 		}
 		break;
 
@@ -414,6 +420,9 @@ void ShortcutMapper::fillOutBabyGrid()
             ::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_MODIFY), shouldBeEnabled);
             ::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_CLEAR), shouldBeEnabled);
             ::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_DELETE), shouldBeEnabled);
+			::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_MOVE_UP), false);
+			::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_MOVE_DOWN), false);
+			::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_SORT), false);
 		}
 		break;
 
@@ -444,6 +453,9 @@ void ShortcutMapper::fillOutBabyGrid()
             ::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_MODIFY), shouldBeEnabled);
             ::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_CLEAR), shouldBeEnabled);
             ::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_DELETE), false);
+			::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_MOVE_UP), false);
+			::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_MOVE_DOWN), false);
+			::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_SORT), false);
 		}
 		break;
 
@@ -482,6 +494,9 @@ void ShortcutMapper::fillOutBabyGrid()
             ::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_MODIFY), true);
             ::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_CLEAR), false);
             ::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_DELETE), false);
+			::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_MOVE_UP), false);
+			::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_MOVE_DOWN), false);
+			::EnableWindow(::GetDlgItem(_hSelf, IDM_BABYGRID_SORT), false);
 		}
 		break;
 	}
@@ -518,21 +533,21 @@ void ShortcutMapper::resizeDialogElements()
 	RECT rcClient{};
 	Window::getClientRect(rcClient);
 
-	RECT rcModBtn{};
-	HWND hModBtn = ::GetDlgItem(_hSelf, IDM_BABYGRID_MODIFY);
-	getMappedChildRect(hModBtn, rcModBtn);
-
-	RECT rcClearBtn{};
-	HWND hClearBtn = ::GetDlgItem(_hSelf, IDM_BABYGRID_CLEAR);
-	getMappedChildRect(hClearBtn, rcClearBtn);
-
-	RECT rcDelBtn{};
-	HWND hDelBtn = ::GetDlgItem(_hSelf, IDM_BABYGRID_DELETE);
-	::GetClientRect(hDelBtn, &rcDelBtn);
+	HWND hButtons[] = {
+		::GetDlgItem(_hSelf, IDM_BABYGRID_MODIFY),
+		::GetDlgItem(_hSelf, IDM_BABYGRID_CLEAR),
+		::GetDlgItem(_hSelf, IDM_BABYGRID_DELETE),
+		::GetDlgItem(_hSelf, IDM_BABYGRID_MOVE_UP),
+		::GetDlgItem(_hSelf, IDM_BABYGRID_MOVE_DOWN),
+		::GetDlgItem(_hSelf, IDM_BABYGRID_SORT),
+		::GetDlgItem(_hSelf, IDOK)
+	};
+	constexpr int nButtons = sizeof(hButtons) / sizeof(hButtons[0]);
 
 	RECT rcOkBtn{};
-	HWND hOkBtn = ::GetDlgItem(_hSelf, IDOK);
-	::GetClientRect(hOkBtn, &rcOkBtn);
+	::GetClientRect(hButtons[nButtons - 1], &rcOkBtn);
+	const int baseBtnWidth = getRcWidth(rcOkBtn);
+	const int btnHeight = getRcHeight(rcOkBtn);
 
 	RECT rcStatic{};
 	HWND hStatic = ::GetDlgItem(_hSelf, IDC_BABYGRID_STATIC);
@@ -556,31 +571,47 @@ void ShortcutMapper::resizeDialogElements()
 	::MapWindowPoints(nullptr, _hSelf, reinterpret_cast<LPPOINT>(&rcInfo), 2);
 
 	const int wClient = getRcWidth(rcClient);
-	const int center = wClient / 2;
-
-	const int wBtn = getRcWidth(rcOkBtn);
-	const int gapBtn = rcClearBtn.left - rcModBtn.right;
-	const int gapBtnHalf = gapBtn / 2;
 
 	const int padding = _dpiManager.scale(6);
-	::InflateRect(&rcClient, -padding, -(gapBtn + getRcHeight(rcOkBtn)));
+	const int gapBtn = _dpiManager.scale(6);
 
-	const int gapBtnEdit = rcClearBtn.top - rcFilterEdit.bottom;
+	::InflateRect(&rcClient, -padding, -(gapBtn + btnHeight));
+
+	int totalGapsWidth = gapBtn * (nButtons - 1);
+	int calculatedBtnWidth = (wClient - (padding * 2) - totalGapsWidth) / nButtons;
+
+	if (calculatedBtnWidth > baseBtnWidth)
+	{
+		calculatedBtnWidth = baseBtnWidth;
+	}
+
+	int totalRowWidth = (calculatedBtnWidth * nButtons) + totalGapsWidth;
+	int startX = (wClient - totalRowWidth) / 2;
+
+	const int gapBtnEdit = _dpiManager.scale(10);
 	const int heightFilter = getRcHeight(rcFilterEdit);
 	const int heightInfo = getRcHeight(rcInfo);
 
-	constexpr int nCtrls = 8;
+	constexpr int nCtrls = 4 + nButtons;
 	auto hdwp = ::BeginDeferWindowPos(nCtrls);
 
-	hdwp = setOrDeferWindowPos(hdwp, hModBtn, nullptr, center - gapBtnHalf - wBtn * 2 - gapBtn, rcClient.bottom, 0, 0, SWP_NOSIZE | flags);
-	hdwp = setOrDeferWindowPos(hdwp, hClearBtn, nullptr, center - gapBtnHalf - wBtn, rcClient.bottom, 0, 0, SWP_NOSIZE | flags);
-	hdwp = setOrDeferWindowPos(hdwp, hDelBtn, nullptr, center + gapBtnHalf, rcClient.bottom, 0, 0, SWP_NOSIZE | flags);
-	hdwp = setOrDeferWindowPos(hdwp, hOkBtn, nullptr, center + gapBtnHalf + wBtn + gapBtn, rcClient.bottom, 0, 0, SWP_NOSIZE | flags);
+	for (int i = 0; i < nButtons; ++i)
+	{
+		if (hButtons[i] != nullptr)
+		{
+			int btnX = startX + i * (calculatedBtnWidth + gapBtn);
+			hdwp = setOrDeferWindowPos(hdwp, hButtons[i], nullptr, btnX, rcClient.bottom, calculatedBtnWidth, btnHeight, flags);
+		}
+	}
 
 	rcClient.bottom -= (gapBtnEdit + heightFilter);
-	hdwp = setOrDeferWindowPos(hdwp, hStatic, nullptr, rcClient.left, rcClient.bottom + gapBtnEdit / 2, 0, 0, SWP_NOSIZE | flags);
-	hdwp = setOrDeferWindowPos(hdwp, hFilterEdit, nullptr, rcFilterEdit.left, rcClient.bottom, rcClient.right - rcFilterEdit.left - clrBtnWidth, heightFilter, flags);
-	hdwp = setOrDeferWindowPos(hdwp, hFilterClearBtn, nullptr, rcClient.right - clrBtnWidth + 2, rcClient.bottom, clrBtnWidth, clrBtnHeight, SWP_NOSIZE | flags);
+	hdwp = setOrDeferWindowPos(hdwp, hStatic, nullptr, rcClient.left, rcClient.bottom + (heightFilter - getRcHeight(rcStatic)) / 2, 0, 0, SWP_NOSIZE | flags);
+
+	int filterX = rcClient.left + getRcWidth(rcStatic) + _dpiManager.scale(4);
+	int filterWidth = rcClient.right - filterX - clrBtnWidth - _dpiManager.scale(2);
+	hdwp = setOrDeferWindowPos(hdwp, hFilterEdit, nullptr, filterX, rcClient.bottom, filterWidth, heightFilter, flags);
+
+	hdwp = setOrDeferWindowPos(hdwp, hFilterClearBtn, nullptr, rcClient.right - clrBtnWidth, rcClient.bottom + (heightFilter - clrBtnHeight) / 2, clrBtnWidth, clrBtnHeight, SWP_NOSIZE | flags);
 	hdwp = setOrDeferWindowPos(hdwp, hInfo, nullptr, rcClient.left, rcClient.bottom - gapBtnEdit - heightInfo, getRcWidth(rcClient), heightInfo, flags);
 
 	if (hdwp)
@@ -589,6 +620,7 @@ void ShortcutMapper::resizeDialogElements()
 	getClientRect(rcClient);
 	_babygrid.reSizeToWH(rcClient);
 }
+
 
 intptr_t CALLBACK ShortcutMapper::run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -1373,6 +1405,158 @@ intptr_t CALLBACK ShortcutMapper::run_dlgProc(UINT message, WPARAM wParam, LPARA
 					HWND hFilterEdit = ::GetDlgItem(_hSelf, IDC_BABYGRID_FILTER);
 					::SetWindowText(hFilterEdit, L"");
 					::SetFocus(hFilterEdit);
+					return TRUE;
+				}
+				case IDM_BABYGRID_MOVE_UP:
+				{
+					if (_babygrid.getNumberRows() < 1)
+						return TRUE;
+
+					NppParameters& nppParam = NppParameters::getInstance();
+					int row = _babygrid.getSelectedRow();
+					size_t shortcutIndex = _shortcutIndex[row - 1];
+
+					switch (_currentState)
+					{
+						case STATE_MENU:
+						case STATE_PLUGIN:
+						case STATE_SCINTILLA:
+						case STATE_USER:
+						{
+							return FALSE;			//this is bad
+						}
+						case STATE_MACRO:
+						{
+							if (shortcutIndex <= 0)
+							{
+								return TRUE;		//We can't move the top-most macro up, so immediately return
+							}
+
+							//Get MacroShortcut corresponding to row
+							vector<MacroShortcut> & shortcuts = nppParam.getMacroList();
+							MacroShortcut msc = shortcuts[shortcutIndex], prevmsc = shortcuts[shortcutIndex - 1];
+
+							//swap selected shortcut with shortcut directly above it
+							shortcuts[shortcutIndex] = prevmsc;
+							shortcuts[shortcutIndex - 1] = msc;
+
+
+							//save the current view
+							_lastHomeRow[_currentState] = _babygrid.getHomeRow();
+							_lastCursorRow[_currentState] = _babygrid.getSelectedRow() - 1;
+							fillOutBabyGrid();
+
+							//Notify current Accelerator class to update everything
+							nppParam.getAccelerator()->updateShortcuts();
+							nppParam.setShortcutDirty();
+						}
+						break;
+					}
+
+					return TRUE;
+				}
+				case IDM_BABYGRID_MOVE_DOWN:
+				{
+					if (_babygrid.getNumberRows() < 1)
+						return TRUE;
+
+					NppParameters& nppParam = NppParameters::getInstance();
+					int row = _babygrid.getSelectedRow();
+					size_t shortcutIndex = _shortcutIndex[row - 1];
+
+					switch (_currentState)
+					{
+						case STATE_MENU:
+						case STATE_PLUGIN:
+						case STATE_SCINTILLA:
+						case STATE_USER:
+						{
+							return FALSE;			//this is bad
+						}
+						case STATE_MACRO:
+						{
+							if (shortcutIndex >= _shortcutIndex.size() - 1)
+							{
+								return TRUE;		//We can't move the bottom-most macro down, so immediately return
+							}
+
+							//Get MacroShortcut corresponding to row
+							vector<MacroShortcut> & shortcuts = nppParam.getMacroList();
+							MacroShortcut msc = shortcuts[shortcutIndex], nextmsc = shortcuts[shortcutIndex + 1];
+
+							//swap selected shortcut with shortcut directly above it
+							shortcuts[shortcutIndex] = nextmsc;
+							shortcuts[shortcutIndex + 1] = msc;
+
+
+							//save the current view
+							_lastHomeRow[_currentState] = _babygrid.getHomeRow();
+							_lastCursorRow[_currentState] = _babygrid.getSelectedRow() + 1;
+							fillOutBabyGrid();
+
+							//Notify current Accelerator class to update everything
+							nppParam.getAccelerator()->updateShortcuts();
+							nppParam.setShortcutDirty();
+						}
+						break;
+					}
+
+					return TRUE;
+				}
+				case IDM_BABYGRID_SORT:
+				{
+					if (_babygrid.getNumberRows() <= 1)
+						return TRUE;
+
+					NppParameters& nppParam = NppParameters::getInstance();
+					int row = _babygrid.getSelectedRow();
+					size_t shortcutIndex = _shortcutIndex[row - 1];
+
+					switch (_currentState)
+					{
+						case STATE_MENU:
+						case STATE_PLUGIN:
+						case STATE_SCINTILLA:
+						case STATE_USER:
+						{
+							return FALSE;			//this is bad
+						}
+						case STATE_MACRO:
+						{
+
+							vector<MacroShortcut> & shortcuts = nppParam.getMacroList();
+							MacroShortcut selected = shortcuts[shortcutIndex];
+
+							//sort Macros with lambda function comparator
+							sort(shortcuts.begin(), shortcuts.end(),
+								[](MacroShortcut const& a, MacroShortcut const& b) -> bool
+							{
+								return strcmp(a.getName(), b.getName()) < 0;
+							}
+							);
+
+							//find position of the selected Macro after the sort
+							size_t i = 0;
+							for (i; i < shortcuts.size(); i++)
+							{
+								if (shortcuts[i] == selected)
+								{
+									break;
+								}
+							}
+
+							//save the current view
+							_lastHomeRow[_currentState] = _babygrid.getHomeRow();
+							_lastCursorRow[_currentState] = i + 1;
+							fillOutBabyGrid();
+
+							//Notify current Accelerator class to update everything
+							nppParam.getAccelerator()->updateShortcuts();
+							nppParam.setShortcutDirty();
+						}
+						break;
+					}
+
 					return TRUE;
 				}
 				default:
