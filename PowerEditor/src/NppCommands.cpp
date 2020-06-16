@@ -1225,6 +1225,8 @@ void Notepad_plus::command(int id)
 			{
 				if (!_pFileBrowser->isClosed() && (id != IDM_VIEW_SWITCHTO_FILEBROWSER))
 				{
+					if (::IsChild(_pFileBrowser->getHSelf(), ::GetFocus()))
+						::SetFocus(_pEditView->getHSelf());
 					_pFileBrowser->display(false);
 					_pFileBrowser->setClosed(true);
 					checkMenuItem(IDM_VIEW_FILEBROWSER, false);
@@ -1286,6 +1288,8 @@ void Notepad_plus::command(int id)
 		{
 			if (_pFuncList && (!_pFuncList->isClosed()))
 			{
+				if (::IsChild(_pFuncList->getHSelf(), ::GetFocus()))
+					::SetFocus(_pEditView->getHSelf());
 				_pFuncList->display(false);
 				_pFuncList->setClosed(true);
 				checkMenuItem(IDM_VIEW_FUNC_LIST, false);
