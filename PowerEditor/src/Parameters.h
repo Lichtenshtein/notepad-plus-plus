@@ -732,7 +732,8 @@ struct NppGUI final
 	bool _splitterPos = POS_VERTICAL;
 	int _userDefineDlgStatus = UDD_DOCKED;
 
-	int _tabSize = 4;
+	int _tabSize = 8;
+	int _indentSize = 4;
 	bool _tabReplacedBySpace = false;
 	bool _backspaceUnindent = false;
 
@@ -976,7 +977,9 @@ struct Lang final
 	std::string _pCommentStart;
 	std::string _pCommentEnd;
 
-	int _tabSize = -1;
+	int _tabSize = 0;
+	int _indentSize = 0;
+	bool _useDefaultTab = true;
 	bool _isTabReplacedBySpace = false;
 	bool _isBackspaceUnindent = false;
 
@@ -994,13 +997,17 @@ struct Lang final
 
 	void setTabInfo(int tabInfo)
 	{
-		static constexpr int MASK_ReplaceBySpc = 0x80;
-		static constexpr int MASK_TabSize = 0x7F;
-		if (tabInfo != -1 && tabInfo & MASK_TabSize)
+		static constexpr int MASK_ReplaceBySpc = 0x8000;
+		static constexpr int MASK_IndentSize = 0x00FF;
+		static constexpr int MASK_TabSize = 0x7F00;
+		if (tabInfo != -1 && (tabInfo & MASK_TabSize) && (tabInfo & MASK_IndentSize))
 		{
 			_isTabReplacedBySpace = (tabInfo & MASK_ReplaceBySpc) != 0;
-			_tabSize = tabInfo & MASK_TabSize;
+			_tabSize = (tabInfo & MASK_TabSize) >> 8;
+			_indentSize = tabInfo & MASK_IndentSize;
+			_useDefaultTab = false;
 		}
+		else _useDefaultTab = true;
 	}
 
 	const wchar_t* getDefaultExtList() const {
@@ -1020,8 +1027,8 @@ struct Lang final
 
 	int getTabInfo() const
 	{
-		if (_tabSize == -1) return -1;
-		return (_isTabReplacedBySpace?0x80:0x00) | _tabSize;
+		if (_useDefaultTab) return -1;
+		return (_isTabReplacedBySpace ? 0x8000 : 0x0000) | (_tabSize << 8) | _indentSize;
 	}
 };
 

@@ -6097,12 +6097,16 @@ void NppParameters::feedGUIParameters(const NppXml::Element& element)
 			if (isFailed)
 				_nppGUI._userDefineDlgStatus = oldValue;
 		}
-		// <GUIConfig name="TabSetting" replaceBySpace="no" size="4" backspaceUnindent="no" />
+		// <GUIConfig name="TabSetting" indentSize="4" tabSize="8" replaceBySpace="no" backspaceUnindent="no" />
 		else if (std::strcmp(nm, "TabSetting") == 0)
 		{
-			_nppGUI._tabSize = NppXml::intAttribute(childNode, "size", _nppGUI._tabSize);
-			if ((_nppGUI._tabSize == -1) || (_nppGUI._tabSize == 0))
-				_nppGUI._tabSize = 4;
+			_nppGUI._indentSize = NppXml::intAttribute(childNode, "indentSize", _nppGUI._indentSize);
+			if (_nppGUI._indentSize < 1)
+			    _nppGUI._indentSize = 4;
+
+			_nppGUI._tabSize = NppXml::intAttribute(childNode, "tabSize", _nppGUI._tabSize);
+			if (_nppGUI._tabSize < 1)
+			    _nppGUI._tabSize = 8;
 
 			_nppGUI._tabReplacedBySpace = getBoolAttribute(childNode, "replaceBySpace");
 			_nppGUI._backspaceUnindent = getBoolAttribute(childNode, "backspaceUnindent");
@@ -7430,12 +7434,13 @@ void NppParameters::createXmlTreeFromGUIParams()
 		NppXml::createChildText(GUIConfigElement, (_nppGUI._userDefineDlgStatus & UDD_SHOW) != 0 ? "show" : "hide");
 	}
 
-	// <GUIConfig name="TabSetting" replaceBySpace="no" size="4" backspaceUnindent="no" />
+	// <GUIConfig name = "TabSetting" indentSize = "4" tabSize = "8" replaceBySpace = "no" backspaceUnindent = "no" / >
 	{
 		NppXml::Element GUIConfigElement = NppXml::createChildElement(newGUIRoot, "GUIConfig");
 		NppXml::setAttribute(GUIConfigElement, "name", "TabSetting");
+		NppXml::setAttribute(GUIConfigElement, "indentSize", _nppGUI._indentSize);
+		NppXml::setAttribute(GUIConfigElement, "tabSize", _nppGUI._tabSize);
 		setBoolAttribute(GUIConfigElement, "replaceBySpace", _nppGUI._tabReplacedBySpace);
-		NppXml::setAttribute(GUIConfigElement, "size", _nppGUI._tabSize);
 		setBoolAttribute(GUIConfigElement, "backspaceUnindent", _nppGUI._backspaceUnindent);
 	}
 

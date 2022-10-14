@@ -236,7 +236,7 @@
 
 #define IDD_PREFERENCE_SUB_MISC                        6300
 #define IDC_TABSETTING_GB_STATIC                       6301
-#define IDC_RADIO_REPLACEBYSPACE                       6302
+#define IDC_CHECK_REPLACEBYSPACE                       6302
 #define IDC_TABSIZE_STATIC                             6303
 #define IDC_HISTORY_GB_STATIC                          6304
 #define IDC_CHECK_DONTCHECKHISTORY                     6305
@@ -244,8 +244,8 @@
 #define IDC_COMBO_SYSTRAY_ACTION_CHOICE                6307
 #define IDC_SYSTRAY_STATIC                             6308
 #define IDC_CHECK_REMEMBERSESSION                      6309
-#define IDC_INDENTUSING_STATIC                         6310
-#define IDC_RADIO_USINGTAB                             6311
+#define IDC_INDENTSIZE_STATIC                          6310
+
 #define IDC_FILEAUTODETECTION_STATIC                   6312
 #define IDC_CHECK_UPDATESILENTLY                       6313
 #define IDC_RADIO_BKNONE                               6315
@@ -348,6 +348,7 @@
 #define IDC_GR_TABVALUE_STATIC                         6511
 #define IDC_CHECK_BACKSPACEUNINDENT                    6512
 #define IDC_EDIT_TABSIZEVAL                            6513
+#define IDC_EDIT_INDENTSIZEVAL                         6514
 
 #define IDD_PREFERENCE_SUB_EDITING2                    6520
 #define IDC_GB_STATIC_MULTIEDITING                     6521

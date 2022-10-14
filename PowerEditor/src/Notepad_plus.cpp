@@ -3785,7 +3785,7 @@ void Notepad_plus::maintainIndentation(wchar_t ch)
 	intptr_t curLine = _pEditView->getCurrentLineNumber();
 	intptr_t prevLine = curLine - 1;
 	intptr_t indentAmountPrevLine = 0;
-	intptr_t tabWidth = _pEditView->execute(SCI_GETTABWIDTH);
+	intptr_t tabWidth = _pEditView->execute(SCI_GETINDENT);
 
 	// Do not alter indentation if we were at the beginning of the line and we pressed Enter
 	if ((((eolMode == SC_EOL_CRLF || eolMode == SC_EOL_LF) && ch == '\n') ||
