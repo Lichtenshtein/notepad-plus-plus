@@ -4418,16 +4418,18 @@ void ScintillaEditView::restoreHiddenLines()
 
 void ScintillaEditView::setTabSettings(Lang* lang)
 {
-	if (lang && lang->_tabSize != -1 && lang->_tabSize != 0)
+	if (lang && !lang->_useDefaultTab)
 	{
 		execute(SCI_SETTABWIDTH, lang->_tabSize);
+		execute(SCI_SETINDENT, lang->_indentSize);
 		execute(SCI_SETUSETABS, !lang->_isTabReplacedBySpace);
 		execute(SCI_SETBACKSPACEUNINDENTS, lang->_isBackspaceUnindent);
 	}
 	else
 	{
 		const NppGUI& nppgui = NppParameters::getInstance().getNppGUI();
-		execute(SCI_SETTABWIDTH, nppgui._tabSize > 0 ? nppgui._tabSize : 4);
+		execute(SCI_SETTABWIDTH, nppgui._tabSize > 0 ? nppgui._tabSize : 8);
+		execute(SCI_SETINDENT, nppgui._indentSize > 0 ? nppgui._indentSize : 4);
 		execute(SCI_SETUSETABS, !nppgui._tabReplacedBySpace);
 		execute(SCI_SETBACKSPACEUNINDENTS, nppgui._backspaceUnindent);
 	}

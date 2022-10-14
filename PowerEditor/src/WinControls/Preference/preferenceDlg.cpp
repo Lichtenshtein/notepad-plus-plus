@@ -4210,8 +4210,8 @@ intptr_t CALLBACK IndentationSubDlg::run_dlgProc(UINT message, WPARAM wParam, LP
 			// Tab settings
 			//
 			::SetDlgItemInt(_hSelf, IDC_EDIT_TABSIZEVAL, nppGUI._tabSize, FALSE);
-			::SendDlgItemMessage(_hSelf, IDC_RADIO_REPLACEBYSPACE, BM_SETCHECK, nppGUI._tabReplacedBySpace, 0);
-			::SendDlgItemMessage(_hSelf, IDC_RADIO_USINGTAB, BM_SETCHECK, !nppGUI._tabReplacedBySpace, 0);
+			::SetDlgItemInt(_hSelf, IDC_EDIT_INDENTSIZEVAL, nppGUI._indentSize, FALSE);
+			::SendDlgItemMessage(_hSelf, IDC_CHECK_REPLACEBYSPACE, BM_SETCHECK, nppGUI._tabReplacedBySpace, 0);
 			::SendDlgItemMessage(_hSelf, IDC_CHECK_BACKSPACEUNINDENT, BM_SETCHECK, nppGUI._backspaceUnindent, 0);
 
 			::SendDlgItemMessage(_hSelf, IDC_LIST_TABSETTNG, LB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"[Default]"));
@@ -4282,7 +4282,7 @@ intptr_t CALLBACK IndentationSubDlg::run_dlgProc(UINT message, WPARAM wParam, LP
 			const auto& hdcStatic = reinterpret_cast<HDC>(wParam);
 			// handle blurry text with disabled states for the affected static controls
 			const auto index = ::SendDlgItemMessage(_hSelf, IDC_LIST_TABSETTNG, LB_GETCURSEL, 0, 0);
-			if ((index > 0) && (dlgCtrlID == IDC_TABSIZE_STATIC || dlgCtrlID == IDC_INDENTUSING_STATIC))
+			if ((index > 0) && (dlgCtrlID == IDC_TABSIZE_STATIC || dlgCtrlID == IDC_INDENTSIZE_STATIC))
 			{
 				const Lang* lang = reinterpret_cast<Lang *>(::SendDlgItemMessage(_hSelf, IDC_LIST_TABSETTNG, LB_GETITEMDATA, index, 0));
 				if (lang == nullptr)
@@ -4322,40 +4322,39 @@ intptr_t CALLBACK IndentationSubDlg::run_dlgProc(UINT message, WPARAM wParam, LP
 						{
 							const Lang* lang = reinterpret_cast<Lang*>(::SendDlgItemMessage(_hSelf, IDC_LIST_TABSETTNG, LB_GETITEMDATA, index, 0));
 							if (!lang) return FALSE;
-
-							bool useDefaultTab = (lang->_tabSize == -1 || lang->_tabSize == 0);
+							bool useDefaultTab = lang->_useDefaultTab;
 
 							::SendMessage(::GetDlgItem(_hSelf, IDC_CHECK_DEFAULTTABVALUE), BM_SETCHECK, useDefaultTab, 0);
 
 							::SetDlgItemInt(_hSelf, IDC_EDIT_TABSIZEVAL,
 								useDefaultTab ? nppGUI._tabSize : lang->_tabSize, FALSE);
-							::SendMessage(::GetDlgItem(_hSelf, IDC_RADIO_REPLACEBYSPACE), BM_SETCHECK,
+							::SetDlgItemInt(_hSelf, IDC_EDIT_INDENTSIZEVAL,
+								useDefaultTab ? nppGUI._indentSize : lang->_indentSize, FALSE);
+							::SendMessage(::GetDlgItem(_hSelf, IDC_CHECK_REPLACEBYSPACE), BM_SETCHECK,
 								useDefaultTab ? nppGUI._tabReplacedBySpace : lang->_isTabReplacedBySpace, 0);
-							::SendMessage(::GetDlgItem(_hSelf, IDC_RADIO_USINGTAB), BM_SETCHECK,
-								useDefaultTab ? !nppGUI._tabReplacedBySpace : !lang->_isTabReplacedBySpace, 0);
 							::SendMessage(::GetDlgItem(_hSelf, IDC_CHECK_BACKSPACEUNINDENT), BM_SETCHECK,
 								useDefaultTab ? nppGUI._backspaceUnindent : lang->_isBackspaceUnindent, 0);
 
 							::EnableWindow(::GetDlgItem(_hSelf, IDC_EDIT_TABSIZEVAL), !useDefaultTab);
-							::EnableWindow(::GetDlgItem(_hSelf, IDC_RADIO_REPLACEBYSPACE), !useDefaultTab);
-							::EnableWindow(::GetDlgItem(_hSelf, IDC_RADIO_USINGTAB), !useDefaultTab);
+							::EnableWindow(::GetDlgItem(_hSelf, IDC_EDIT_INDENTSIZEVAL), !useDefaultTab);
+							::EnableWindow(::GetDlgItem(_hSelf, IDC_CHECK_REPLACEBYSPACE), !useDefaultTab);
 							::EnableWindow(::GetDlgItem(_hSelf, IDC_CHECK_BACKSPACEUNINDENT), !useDefaultTab);
 						}
 						else
 						{
 							::SetDlgItemInt(_hSelf, IDC_EDIT_TABSIZEVAL, nppGUI._tabSize, FALSE);
-							::SendMessage(::GetDlgItem(_hSelf, IDC_RADIO_REPLACEBYSPACE), BM_SETCHECK, nppGUI._tabReplacedBySpace, 0);
-							::SendMessage(::GetDlgItem(_hSelf, IDC_RADIO_USINGTAB), BM_SETCHECK, !nppGUI._tabReplacedBySpace, 0);
+							::SetDlgItemInt(_hSelf, IDC_EDIT_INDENTSIZEVAL, nppGUI._indentSize, FALSE);
+							::SendMessage(::GetDlgItem(_hSelf, IDC_CHECK_REPLACEBYSPACE), BM_SETCHECK, nppGUI._tabReplacedBySpace, 0);
 							::SendMessage(::GetDlgItem(_hSelf, IDC_CHECK_BACKSPACEUNINDENT), BM_SETCHECK, nppGUI._backspaceUnindent, 0);
 
 							::EnableWindow(::GetDlgItem(_hSelf, IDC_EDIT_TABSIZEVAL), TRUE);
-							::EnableWindow(::GetDlgItem(_hSelf, IDC_RADIO_REPLACEBYSPACE), TRUE);
-							::EnableWindow(::GetDlgItem(_hSelf, IDC_RADIO_USINGTAB), TRUE);
+							::EnableWindow(::GetDlgItem(_hSelf, IDC_EDIT_INDENTSIZEVAL), TRUE);
+							::EnableWindow(::GetDlgItem(_hSelf, IDC_CHECK_REPLACEBYSPACE), TRUE);
 							::EnableWindow(::GetDlgItem(_hSelf, IDC_CHECK_BACKSPACEUNINDENT), TRUE);
 						}
 
 						redrawDlgItem(IDC_TABSIZE_STATIC);
-						redrawDlgItem(IDC_INDENTUSING_STATIC);
+						redrawDlgItem(IDC_INDENTSIZE_STATIC);
 
 						return TRUE;
 					}
@@ -4390,6 +4389,34 @@ intptr_t CALLBACK IndentationSubDlg::run_dlgProc(UINT message, WPARAM wParam, LP
 							else
 							{
 								nppGUI._tabSize = tabSize;
+							}
+
+							::SendMessage(::GetParent(_hParent), NPPM_INTERNAL_SET_TAB_SETTINGS, 0, 0);
+							return TRUE;
+						}
+						case IDC_EDIT_INDENTSIZEVAL:
+						{
+							const auto indentSize = ::GetDlgItemInt(_hSelf, IDC_EDIT_INDENTSIZEVAL, nullptr, FALSE);
+							if (indentSize < 1)
+							{
+								return FALSE;
+							}
+
+							const bool useDefaultTab = isCheckedOrNot(IDC_CHECK_DEFAULTTABVALUE);
+							const auto index = ::SendDlgItemMessage(_hSelf, IDC_LIST_TABSETTNG, LB_GETCURSEL, 0, 0);
+							if (!useDefaultTab && index > 0)
+							{
+								Lang* lang = reinterpret_cast<Lang*>(::SendDlgItemMessage(_hSelf, IDC_LIST_TABSETTNG, LB_GETITEMDATA, index, 0));
+								if (lang == nullptr) return FALSE;
+
+								lang->_indentSize = indentSize;
+
+								// write in langs.xml
+								nppParam.insertTabInfo(lang->getLangName(), lang->getTabInfo(), lang->_isBackspaceUnindent);
+							}
+							else
+							{
+								nppGUI._indentSize = indentSize;
 							}
 
 							::SendMessage(::GetParent(_hParent), NPPM_INTERNAL_SET_TAB_SETTINGS, 0, 0);
@@ -4431,6 +4458,29 @@ intptr_t CALLBACK IndentationSubDlg::run_dlgProc(UINT message, WPARAM wParam, LP
 							}
 							return FALSE;
 						}
+						case IDC_EDIT_INDENTSIZEVAL:
+						{
+							const auto indentSize = ::GetDlgItemInt(_hSelf, IDC_EDIT_INDENTSIZEVAL, nullptr, FALSE);
+
+							if (indentSize < 1)
+							{
+								const bool useDefaultTab = isCheckedOrNot(IDC_CHECK_DEFAULTTABVALUE);
+								const size_t index = ::SendDlgItemMessage(_hSelf, IDC_LIST_TABSETTNG, LB_GETCURSEL, 0, 0);
+								auto prevSize = nppGUI._indentSize;
+								if (!useDefaultTab && index > 0)
+								{
+									const Lang* lang = reinterpret_cast<Lang*>(::SendDlgItemMessage(_hSelf, IDC_LIST_TABSETTNG, LB_GETITEMDATA, index, 0));
+									if (lang != nullptr && lang->_indentSize > 0)
+									{
+										prevSize = lang->_indentSize;
+									}
+								}
+
+								::SetDlgItemInt(_hSelf, IDC_EDIT_INDENTSIZEVAL, prevSize, FALSE);
+								return TRUE;
+							}
+							return FALSE;
+						}
 
 						default:
 						{
@@ -4449,11 +4499,9 @@ intptr_t CALLBACK IndentationSubDlg::run_dlgProc(UINT message, WPARAM wParam, LP
 
 			switch (wParam)
 			{
-				case IDC_RADIO_REPLACEBYSPACE:
-				case IDC_RADIO_USINGTAB:
+				case IDC_CHECK_REPLACEBYSPACE:
 				{
-					bool isTabReplacedBySpace = BST_CHECKED == ::SendMessage(::GetDlgItem(_hSelf, IDC_RADIO_REPLACEBYSPACE), BM_GETCHECK, 0, 0);
-
+					bool isTabReplacedBySpace = BST_CHECKED == ::SendMessage(::GetDlgItem(_hSelf, IDC_CHECK_REPLACEBYSPACE), BM_GETCHECK, 0, 0);
 					auto index = ::SendDlgItemMessage(_hSelf, IDC_LIST_TABSETTNG, LB_GETCURSEL, 0, 0);
 					if (index == LB_ERR) return FALSE;
 
@@ -4519,19 +4567,21 @@ intptr_t CALLBACK IndentationSubDlg::run_dlgProc(UINT message, WPARAM wParam, LP
 					if (!lang)
 						return FALSE;
 
-					//- Set tab setting in chosen language
-					lang->_tabSize = useDefaultTab ? 0 : nppGUI._tabSize;
-					lang->_isTabReplacedBySpace = useDefaultTab ? false : nppGUI._tabReplacedBySpace;
-					lang->_isBackspaceUnindent = useDefaultTab ? false : nppGUI._backspaceUnindent;
+					//- Set tab setting in choosed language
+					lang->_useDefaultTab = useDefaultTab;
+					lang->_tabSize = nppGUI._tabSize;
+					lang->_indentSize = nppGUI._indentSize;
+					lang->_isTabReplacedBySpace = nppGUI._tabReplacedBySpace;
+					lang->_isBackspaceUnindent = nppGUI._backspaceUnindent;
 
 					//- set visual effect
 					::SetDlgItemInt(_hSelf, IDC_EDIT_TABSIZEVAL, useDefaultTab ? nppGUI._tabSize : lang->_tabSize, FALSE);
-					setChecked(IDC_RADIO_REPLACEBYSPACE, useDefaultTab ? nppGUI._tabReplacedBySpace : lang->_isTabReplacedBySpace);
-					setChecked(IDC_RADIO_USINGTAB, useDefaultTab ? !nppGUI._tabReplacedBySpace : !lang->_isTabReplacedBySpace);
+					::SetDlgItemInt(_hSelf, IDC_EDIT_INDENTSIZEVAL, useDefaultTab ? nppGUI._indentSize : lang->_indentSize, FALSE);
+					setChecked(IDC_CHECK_REPLACEBYSPACE, useDefaultTab ? nppGUI._tabReplacedBySpace : lang->_isTabReplacedBySpace);
 					setChecked(IDC_CHECK_BACKSPACEUNINDENT, useDefaultTab ? nppGUI._backspaceUnindent : lang->_isBackspaceUnindent);
 					::EnableWindow(::GetDlgItem(_hSelf, IDC_EDIT_TABSIZEVAL), !useDefaultTab);
-					::EnableWindow(::GetDlgItem(_hSelf, IDC_RADIO_REPLACEBYSPACE), !useDefaultTab);
-					::EnableWindow(::GetDlgItem(_hSelf, IDC_RADIO_USINGTAB), !useDefaultTab);
+					::EnableWindow(::GetDlgItem(_hSelf, IDC_EDIT_INDENTSIZEVAL), !useDefaultTab);
+					::EnableWindow(::GetDlgItem(_hSelf, IDC_CHECK_REPLACEBYSPACE), !useDefaultTab);
 					::EnableWindow(::GetDlgItem(_hSelf, IDC_CHECK_BACKSPACEUNINDENT), !useDefaultTab);
 
 					// write in langs.xml
@@ -4539,7 +4589,7 @@ intptr_t CALLBACK IndentationSubDlg::run_dlgProc(UINT message, WPARAM wParam, LP
 						nppParam.insertTabInfo(lang->getLangName(), -1, false);
 
 					redrawDlgItem(IDC_TABSIZE_STATIC);
-					redrawDlgItem(IDC_INDENTUSING_STATIC);
+					redrawDlgItem(IDC_INDENTSIZE_STATIC);
 
 					return TRUE;
 				}
