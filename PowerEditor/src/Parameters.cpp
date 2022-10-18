@@ -6100,6 +6100,8 @@ void NppParameters::feedGUIParameters(const NppXml::Element& element)
 		// <GUIConfig name="TabSetting" indentSize="4" tabSize="8" replaceBySpace="no" backspaceUnindent="no" />
 		else if (std::strcmp(nm, "TabSetting") == 0)
 		{
+			// Interpret single "size" as "indentSize" (old format)
+			_nppGUI._indentSize = NppXml::intAttribute(childNode, "size", _nppGUI._indentSize);
 			_nppGUI._indentSize = NppXml::intAttribute(childNode, "indentSize", _nppGUI._indentSize);
 			if (_nppGUI._indentSize < 1)
 			    _nppGUI._indentSize = 4;
