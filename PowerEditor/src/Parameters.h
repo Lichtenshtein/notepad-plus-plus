@@ -998,11 +998,22 @@ struct Lang final
 		static constexpr int MASK_ReplaceBySpc = 0x8000;
 		static constexpr int MASK_IndentSize = 0x00FF;
 		static constexpr int MASK_TabSize = 0x7F00;
-		if (tabInfo != -1 && (tabInfo & MASK_TabSize) && (tabInfo & MASK_IndentSize))
+		if (tabInfo != -1 && (tabInfo & MASK_IndentSize))
 		{
-			_isTabReplacedBySpace = (tabInfo & MASK_ReplaceBySpc) != 0;
-			_tabSize = (tabInfo & MASK_TabSize) >> 8;
-			_indentSize = tabInfo & MASK_IndentSize;
+			if (tabInfo & MASK_TabSize)
+			{
+				// Separate tab & indent size (new format)
+				_isTabReplacedBySpace = (tabInfo & MASK_ReplaceBySpc) != 0;
+				_indentSize = tabInfo & MASK_IndentSize;
+				_tabSize = (tabInfo & MASK_TabSize) >> 8;
+			}
+			else
+			{
+				// Only indent size (old format)
+				_isTabReplacedBySpace = (tabInfo & 0x80) != 0;
+				_indentSize = tabInfo & 0x7f;
+				_tabSize = 8;
+			}
 			_useDefaultTab = false;
 		}
 		else _useDefaultTab = true;
