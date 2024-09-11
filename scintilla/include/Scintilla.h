@@ -820,6 +820,7 @@ typedef sptr_t (*SciFnDirectStatus)(sptr_t ptr, unsigned int iMessage, uptr_t wP
 #define SCI_VCHOMEWRAP 2453
 #define SCI_VCHOMEWRAPEXTEND 2454
 #define SCI_LINECOPY 2455
+#define SCI_LINECOPY_NO_NL 2851
 #define SCI_MOVECARETINSIDEVIEW 2401
 #define SCI_LINELENGTH 2350
 #define SCI_BRACEHIGHLIGHT 2351

@@ -501,6 +501,7 @@ enum class Message {
 	VCHomeWrap = 2453,
 	VCHomeWrapExtend = 2454,
 	LineCopy = 2455,
+	LineCopyNoNL = 2851,
 	MoveCaretInsideView = 2401,
 	LineLength = 2350,
 	BraceHighlight = 2351,

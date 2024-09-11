@@ -545,6 +545,7 @@ protected:	// ScintillaBase subclass needs access to much of Editor
 	bool CopyLineRange(SelectionText *ss, bool allowProtected=true);
 	void CopySelectionRange(SelectionText *ss, bool allowLineCopy=false);
 	void CopyRangeToClipboard(Sci::Position start, Sci::Position end);
+	void CopyRangeToClipboardNoNL(Sci::Position start, Sci::Position end);
 	void CopyText(size_t length, const char *text);
 	void SetDragPosition(SelectionPosition newPos);
 	virtual void DisplayCursor(Window::Cursor c);

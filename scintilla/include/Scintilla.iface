@@ -2177,6 +2177,7 @@ fun void VCHomeWrapExtend=2454(,)
 
 # Copy the line containing the caret.
 fun void LineCopy=2455(,)
+fun void LineCopyNoNL=2851(,)
 
 # Move the caret inside current view if it's not there already.
 fun void MoveCaretInsideView=2401(,)
