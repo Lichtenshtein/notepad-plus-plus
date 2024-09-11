@@ -632,7 +632,7 @@ static constexpr ScintillaKeyDefinition scintKeyDefs[]
 	{L"SCI_DELLINERIGHT",            SCI_DELLINERIGHT,            true,  false, true,  VK_DELETE,   0},
 	{L"SCI_LINEDELETE",              SCI_LINEDELETE,              true,  false, true,  VK_L,        0},
 	{L"SCI_LINECUT",                 SCI_LINECUT,                 true,  false, false, VK_L,        0},
-	{L"SCI_LINECOPY",                SCI_LINECOPY,                true,  false, true,  VK_X,        0},
+	{L"SCI_LINECOPY_NO_NL",          SCI_LINECOPY_NO_NL,          true,  false, true,  VK_X,        0},
 	{L"SCI_LINETRANSPOSE",           SCI_LINETRANSPOSE,           true,  false, false, VK_T,        0},
 	{L"SCI_LINEDUPLICATE",           SCI_LINEDUPLICATE,           false, false, false, 0,           IDM_EDIT_DUP_LINE},
 	{L"SCI_CANCEL",                  SCI_CANCEL,                  false, false, false, VK_ESCAPE,   0},

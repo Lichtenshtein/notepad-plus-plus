@@ -3083,6 +3083,7 @@ void Editor::NotifyMacroRecord(Message iMessage, uptr_t wParam, sptr_t lParam) {
 	case Message::DelLineLeft:
 	case Message::DelLineRight:
 	case Message::LineCopy:
+	case Message::LineCopyNoNL:
 	case Message::LineCut:
 	case Message::LineDelete:
 	case Message::LineTranspose:
@@ -4141,6 +4142,13 @@ int Editor::KeyCommand(Message iMessage) {
 				pdoc->LineStart(lineEnd + 1));
 		}
 		break;
+	case Message::LineCopyNoNL: {
+			const Sci::Line lineStart = pdoc->SciLineFromPosition(SelectionStart().Position());
+			const Sci::Line lineEnd = pdoc->SciLineFromPosition(SelectionEnd().Position());
+			CopyRangeToClipboardNoNL(pdoc->LineStart(lineStart),
+				pdoc->LineStart(lineEnd + 1));
+		}
+		break;
 	case Message::LineCut: {
 			const Sci::Line lineStart = pdoc->SciLineFromPosition(SelectionStart().Position());
 			const Sci::Line lineEnd = pdoc->SciLineFromPosition(SelectionEnd().Position());
@@ -4529,6 +4537,27 @@ void Editor::CopyRangeToClipboard(Sci::Position start, Sci::Position end) {
 		pdoc->dbcsCodePage, vs.styles[StyleDefault].characterSet, false, false);
 	CopyToClipboard(selectedText);
 }
+
+void Editor::CopyRangeToClipboardNoNL(Sci::Position start, Sci::Position end) {
+	start = pdoc->ClampPositionIntoDocument(start);
+	end = pdoc->ClampPositionIntoDocument(end);
+	SelectionText selectedText;
+	std::string text = RangeText(start, end);
+	std::string::size_type i = text.find('\r');
+	if (i != std::string::npos)
+	{
+		text.erase(i);
+	}
+	i = text.find('\n');
+	if (i != std::string::npos)
+	{
+		text.erase(i);
+	}
+	selectedText.Copy(text,
+		pdoc->dbcsCodePage, vs.styles[StyleDefault].characterSet, false, false);
+	CopyToClipboard(selectedText);
+}
+
 
 void Editor::CopyText(size_t length, const char *text) {
 	SelectionText selectedText;
@@ -8359,6 +8388,7 @@ sptr_t Editor::WndProc(Message iMessage, uptr_t wParam, sptr_t lParam) {
 	case Message::DelLineLeft:
 	case Message::DelLineRight:
 	case Message::LineCopy:
+	case Message::LineCopyNoNL:
 	case Message::LineCut:
 	case Message::LineDelete:
 	case Message::LineTranspose:
