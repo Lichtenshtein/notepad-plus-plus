@@ -3799,7 +3799,14 @@ void Notepad_plus::maintainIndentation(wchar_t ch)
 
 			if (indentAmountPrevLine > 0)
 			{
-				_pEditView->setLineIndent(curLine, indentAmountPrevLine);
+				Sci_TextRangeFull indentText;
+				indentText.chrg.cpMin = _pEditView->execute(SCI_POSITIONFROMLINE, prevLine);
+				indentText.chrg.cpMax = _pEditView->execute(SCI_GETLINEINDENTPOSITION, prevLine);
+				std::string indentString(indentText.chrg.cpMax - indentText.chrg.cpMin, 0);
+				indentText.lpstrText = indentString.data();
+				_pEditView->execute(SCI_GETTEXTRANGEFULL, 0, reinterpret_cast<LPARAM>(&indentText));
+				_pEditView->execute(SCI_ADDTEXT, indentString.length(), reinterpret_cast<LPARAM>(indentString.data()));
+				_pEditView->execute(SCI_SCROLLCARET);
 			}
 		}
 
