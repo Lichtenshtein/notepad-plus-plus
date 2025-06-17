@@ -286,6 +286,8 @@ public:
 			id == IDM_VIEW_DOC_MAP || id == IDM_EDIT_CHAR_PANEL || id == IDM_EDIT_CLIPBOARDHISTORY_PANEL);
 	}
 
+	bool _cancelCutOperation;
+
 private:
 	Notepad_plus_Window* _pPublicInterface = nullptr;
     Window* _pMainWindow = nullptr;
