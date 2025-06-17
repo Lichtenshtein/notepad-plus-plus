@@ -279,6 +279,8 @@ public:
 
 	void changeReadOnlyUserModeForAllOpenedTabs(const bool ro);
 
+	bool _cancelCutOperation;
+
 private:
 	Notepad_plus_Window* _pPublicInterface = nullptr;
     Window* _pMainWindow = nullptr;
