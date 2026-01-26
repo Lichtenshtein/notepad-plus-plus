@@ -392,12 +392,12 @@ void Notepad_plus::command(int id)
 			break;
 
 		case IDM_FILE_CLOSE:
-			if (fileClose())
+			if (!_pEditView->getCurrentBuffer()->isPinned() && fileClose())
                 checkDocState();
 			break;
 
 		case IDM_FILE_DELETE:
-			if (fileDelete())
+			if (!_pEditView->getCurrentBuffer()->isPinned() && fileDelete())
                 checkDocState();
 			break;
 
