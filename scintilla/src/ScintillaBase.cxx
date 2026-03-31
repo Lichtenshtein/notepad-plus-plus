@@ -139,6 +139,9 @@ void ScintillaBase::Command(int cmdId) {
 }
 
 int ScintillaBase::KeyCommand(Message iMessage) {
+	const int lbcount = ac.lb->Length();
+	int scrolldowntoindex = ac.lb->GetSelection() + ac.lb->GetVisibleRows();
+	int scrolluptoindex = ac.lb->GetSelection() - ac.lb->GetVisibleRows();
 	// Most key commands cancel autocompletion mode
 	if (ac.Active()) {
 		switch (iMessage) {
@@ -150,16 +153,36 @@ int ScintillaBase::KeyCommand(Message iMessage) {
 			AutoCompleteMove(-1);
 			return 0;
 		case Message::PageDown:
-			AutoCompleteMove(ac.lb->GetVisibleRows());
-			return 0;
+				if (scrolldowntoindex < lbcount - 1) {
+						// move down normally
+						AutoCompleteMove(ac.lb->GetVisibleRows());
+						return 0;
+				}
+				else {
+						// move to the last element
+						ac.lb->Select(lbcount - 1);
+						return 0;
+				}
 		case Message::PageUp:
-			AutoCompleteMove(-ac.lb->GetVisibleRows());
-			return 0;
+				if (scrolluptoindex > 0) {
+						// move up normally
+						AutoCompleteMove(-ac.lb->GetVisibleRows());
+						return 0;
+				}
+				else {
+						// move to the first element
+						ac.lb->Select(0);
+						return 0;
+				}
 		case Message::VCHome:
-			AutoCompleteMove(-5000);
+			// AutoCompleteMove(-5000);
+			// move to the first element:
+			ac.lb->Select(0);
 			return 0;
 		case Message::LineEnd:
-			AutoCompleteMove(5000);
+			// AutoCompleteMove(5000);
+			// move to the last element:
+			ac.lb->Select(lbcount - 1);
 			return 0;
 		case Message::DeleteBack:
 			DelCharBack(true);
@@ -178,10 +201,17 @@ int ScintillaBase::KeyCommand(Message iMessage) {
 			AutoCompleteCompleted(0, CompletionMethods::Newline);
 			return 0;
 
+		// The RIGHT arrow functions the same way as the ENTER key (NewLine) in the autocompletion box:
+		case Message::CharRight:
+			AutoCompleteCompleted(0, CompletionMethods::Newline);
+			return 0;
+
 		default:
 			AutoCompleteCancel();
 		}
 	}
+
+
 
 	if (ct.inCallTipMode) {
 		if (
