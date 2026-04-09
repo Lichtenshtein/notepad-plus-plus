@@ -1884,6 +1884,7 @@ intptr_t CALLBACK EditingSubDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM
 
 			::SendMessage(::GetDlgItem(_hSelf, IDC_WIDTH_COMBO), CB_SETCURSEL, nppGUI._caretWidth, 0);
 			::SendDlgItemMessage(_hSelf, IDC_CHECK_FOLDINGTOGGLE, BM_SETCHECK, nppGUI._enableFoldCmdToggable, 0);
+			::SendDlgItemMessage(_hSelf, IDC_CHECK_MIRROR_LTR_IN_RTL, BM_SETCHECK, nppGUI._mirrorLTRInRTL ? BST_CHECKED : BST_UNCHECKED, 0);
 			
 			::SendMessage(::GetDlgItem(_hSelf, IDC_CARETBLINKRATE_SLIDER),TBM_SETRANGEMIN, TRUE, BLINKRATE_FASTEST);
 			::SendMessage(::GetDlgItem(_hSelf, IDC_CARETBLINKRATE_SLIDER),TBM_SETRANGEMAX, TRUE, BLINKRATE_SLOWEST);
@@ -2029,6 +2030,10 @@ intptr_t CALLBACK EditingSubDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM
 
 				case IDC_CHECK_FOLDINGTOGGLE:
 					nppGUI._enableFoldCmdToggable = isCheckedOrNot(IDC_CHECK_FOLDINGTOGGLE);
+					return TRUE;
+
+				case IDC_CHECK_MIRROR_LTR_IN_RTL:
+					nppGUI._mirrorLTRInRTL = isCheckedOrNot(IDC_CHECK_MIRROR_LTR_IN_RTL);
 					return TRUE;
 
 				case IDC_RADIO_LWDEF:
