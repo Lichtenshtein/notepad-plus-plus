@@ -4135,10 +4135,14 @@ void Notepad_plus::command(int id)
 
 			_pEditView->changeTextDirection(toRTL);
 
-			// Wrap then !wrap to fix problem of mirror characters
-			bool isWrapped = _pEditView->isWrap();
-			_pEditView->wrap(!isWrapped);
-			_pEditView->wrap(isWrapped);
+			// Wrap then !wrap to fix problem of mirror characters.
+			// Skipped when the user has opted-in to geometric mirroring of LTR text in RTL mode.
+			if (!(NppParameters::getInstance().getNppGUI()._mirrorLTRInRTL))
+			{
+				bool isWrapped = _pEditView->isWrap();
+				_pEditView->wrap(!isWrapped);
+				_pEditView->wrap(isWrapped);
+			}
 
 			if (_pDocMap)
 			{

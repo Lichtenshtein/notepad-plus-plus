@@ -6672,6 +6672,7 @@ void NppParameters::feedGUIParameters(const NppXml::Element& element)
 			_nppGUI._enableFoldCmdToggable = getBoolAttribute(childNode, "enableFoldCmdToggable");
 			_nppGUI._hideMenuRightShortcuts = getBoolAttribute(childNode, "hideMenuRightShortcuts");
 			_nppGUI._networkPathWarningMethod = static_cast<NppGUI::NetworkPathWarningMethod>(NppXml::intAttribute(childNode, "networkPathWarningMethod", _nppGUI._networkPathWarningMethod));
+			_nppGUI._mirrorLTRInRTL = getBoolAttribute(childNode, "mirrorLTRInRTL");
 		}
 		// <GUIConfig name="DarkMode" enable="no" colorTone="0" customColorTop="2105376" customColorMenuHotTrack="4539717" customColorActive="3684408"
 		// customColorMain="2105376" customColorError="176" customColorText="14737632" customColorDarkText="12632256" customColorDisabledText="8421504"
@@ -7796,6 +7797,7 @@ void NppParameters::createXmlTreeFromGUIParams()
 		setBoolAttribute(GUIConfigElement, "enableFoldCmdToggable", _nppGUI._enableFoldCmdToggable);
 		setBoolAttribute(GUIConfigElement, "hideMenuRightShortcuts", _nppGUI._hideMenuRightShortcuts);
 		NppXml::setAttribute(GUIConfigElement, "networkPathWarningMethod", _nppGUI._networkPathWarningMethod);
+		setBoolAttribute(GUIConfigElement, "mirrorLTRInRTL", _nppGUI._mirrorLTRInRTL);
 	}
 
 	// <GUIConfig name="Searching" monospacedFontFindDlg="no" fillFindFieldWithSelected="yes" fillFindFieldSelectCaret="yes"
