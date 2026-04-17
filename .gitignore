@@ -166,3 +166,10 @@ PowerEditor/src/MISC/md5/RCa06792
 *.db
 *.sln
 *.opendb
+# Lazy-session-load fork: portable test environments + temp build artifacts
+/test_lazy/
+/test_repro/
+/test_minimal/
+/PR_BODY.md
+# Agent worktree scratch (created by Claude Code during isolation runs)
+/.claude/
