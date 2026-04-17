@@ -93,6 +93,32 @@ public:
 	// create an empty placeholder for a missing file when loading session
 	BufferID newPlaceholderDocument(const wchar_t * missingFilename, int whichOne, const wchar_t* userCreatedSessionName);
 
+	// create a lazy-session placeholder buffer bound to an existing on-disk file.
+	// The buffer is inserted into view with the real full path set, empty Scintilla
+	// document, and _isLazyPending=true. File content is loaded later via
+	// resolveLazyBuffer() (on tab activation or from the background queue).
+	// If backupPath is non-null and refers to an existing snapshot backup file,
+	// the buffer is additionally marked dirty and will load its content from
+	// the backup (preserving unsaved edits) instead of the original file.
+	BufferID newLazyDocument(const wchar_t* filename, int whichOne, int encoding, const wchar_t* backupPath = nullptr, FILETIME originalTimestamp = {}, int insertTabIndex = -1);
+
+	// create a lazy-session placeholder for an UNTITLED tab whose content lives in
+	// the snapshot backup directory (produced by isSnapshotMode). The tab displays
+	// displayName (e.g. "new 12"), stays dirty, and lazily loads from backupPath
+	// on first activation.
+	BufferID newLazyBackupDocument(const wchar_t* displayName, const wchar_t* backupPath, int whichOne, int encoding, FILETIME originalTimestamp, int insertTabIndex = -1);
+
+	// Load the on-disk content for a lazy-pending buffer. Returns true on success.
+	// After this call, the buffer behaves like a normally-opened file.
+	bool resolveLazyBuffer(BufferID id);
+
+	// Apply bytes previously read on a worker thread to a lazy buffer.
+	// Creates the Scintilla Document on demand, fills it, runs the encoding
+	// / EOL detection, clears the lazy flag and fires the completion
+	// notification. Must be called on the main thread. Used by the
+	// worker-thread content pre-fetch (Notepad_plus::lazyLoadWorkerMain).
+	bool applyLazyContent(BufferID id, const char* bytes, size_t nbBytes, int encoding, bool fromBackup);
+
 	//create Buffer from existing Scintilla, used from new Scintillas.
 	BufferID bufferFromDocument(Document doc, bool isMainEditZone);
 
@@ -167,12 +193,17 @@ public:
 	//Load the document into Scintilla/add to TabBar
 	//The entire lifetime if the buffer, the Document has reference count of _atleast_ one
 	//Destructor makes sure its purged
-	Buffer(FileManager * pManager, BufferID id, Document doc, DocFileStatus type, const wchar_t *fileName, bool isLargeFile);
+	Buffer(FileManager * pManager, BufferID id, Document doc, DocFileStatus type, const wchar_t *fileName, bool isLargeFile, bool skipInitialFileStat = false);
 
 	// this method 1. copies the file name
 	//             2. determines the language from the ext of file name
 	//             3. gets the last modified time
 	void setFileName(const wchar_t *fn);
+
+	// Variant used by lazy-session-load construction: copy the name and compute
+	// the compact/display string, but skip extension-based language detection
+	// and the filesystem stat (updateTimeStamp). Both are deferred to resolveLazyBuffer.
+	void setFileNameForLazyInit(const wchar_t *fn);
 
 	const wchar_t * getFullPathName() const { return _fullPathName.c_str(); }
 
@@ -205,6 +236,11 @@ public:
 
 	bool isInaccessible() const { return _isInaccessible; }
 	void setInaccessibility(bool val) { _isInaccessible = val; }
+
+	// Lazy session load: buffer is a placeholder awaiting file content.
+	// Content is loaded on first tab activation or by the background load queue.
+	bool isLazyPending() const { return _isLazyPending; }
+	void setLazyPending(bool val) { _isLazyPending = val; }
 
 	bool getFileReadOnly() const { return _isFileReadOnly; }
 
@@ -485,4 +521,12 @@ private:
 
 	bool _isRTL = false;
 	bool _isPinned = false;
+
+	bool _isLazyPending = false; // true for lazy-session placeholder buffers awaiting file load
+
+public:
+	// Bookmark line numbers deferred by lazy-session restore. They are applied
+	// to the Scintilla document in resolveLazyBuffer() after the file content
+	// is loaded. Public because the loader in NppIO.cpp stashes them directly.
+	std::vector<size_t> _lazyPendingMarks;
 };

@@ -5872,6 +5872,11 @@ void NppParameters::feedGUIParameters(const NppXml::Element& element)
 		{
 			_nppGUI._keepSessionAbsentFileEntries = getBoolChildTextNode(childNode);
 		}
+		// <GUIConfig name="LazySessionLoad">no</GUIConfig>
+		else if (std::strcmp(nm, "LazySessionLoad") == 0)
+		{
+			_nppGUI._isLazySessionLoad = getBoolChildTextNode(childNode);
+		}
 		// <GUIConfig name="DetectEncoding">yes</GUIConfig>
 		else if (std::strcmp(nm, "DetectEncoding") == 0)
 		{
@@ -7533,6 +7538,11 @@ void NppParameters::createXmlTreeFromGUIParams()
 	// <GUIConfig name="KeepSessionAbsentFileEntries">no</GUIConfig>
 	{
 		insertGUIConfigBoolNode(newGUIRoot, "KeepSessionAbsentFileEntries", _nppGUI._keepSessionAbsentFileEntries);
+	}
+
+	// <GUIConfig name="LazySessionLoad">no</GUIConfig>
+	{
+		insertGUIConfigBoolNode(newGUIRoot, "LazySessionLoad", _nppGUI._isLazySessionLoad);
 	}
 
 	// <GUIConfig name="DetectEncoding">yes</GUIConfig>
