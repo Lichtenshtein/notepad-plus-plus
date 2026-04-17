@@ -1148,12 +1148,21 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 		{
 			size_t nbDocPrimary = _mainDocTab.nbItem();
 			size_t nbDocSecond = _subDocTab.nbItem();
+			// Include any not-yet-materialised lazy session entries so plugins
+			// that count buffers at NPPN_READY see the true total. Per-view
+			// counts split by whichOne.
+			size_t pendingPrimary = 0, pendingSecond = 0;
+			for (const auto& e : _pendingSessionInserts)
+			{
+				if (e.whichOne == MAIN_VIEW) ++pendingPrimary;
+				else ++pendingSecond;
+			}
 			if (lParam == ALL_OPEN_FILES)
-				return nbDocPrimary + nbDocSecond;
+				return nbDocPrimary + nbDocSecond + pendingPrimary + pendingSecond;
 			else if (lParam == PRIMARY_VIEW)
-				return nbDocPrimary;
+				return nbDocPrimary + pendingPrimary;
 			else if (lParam == SECOND_VIEW)
-				return nbDocSecond;
+				return nbDocSecond + pendingSecond;
 			else
 				return 0;
 		}
@@ -1177,6 +1186,14 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 					Buffer * buf = MainFileManager.getBufferByID(id);
 					lstrcpy(fileNames[j++], buf->getFullPathName());
 				}
+				// Include pending lazy session entries for MAIN_VIEW so plugins
+				// at NPPN_READY see the complete file list.
+				for (const auto& e : _pendingSessionInserts)
+				{
+					if (j >= nbFileNames) break;
+					if (e.whichOne == MAIN_VIEW)
+						lstrcpy(fileNames[j++], e.info._fileName.c_str());
+				}
 			}
 
 			if (message != NPPM_GETOPENFILENAMESPRIMARY_DEPRECATED)
@@ -1186,6 +1203,12 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 					BufferID id = _subDocTab.getBufferByIndex(i);
 					Buffer * buf = MainFileManager.getBufferByID(id);
 					lstrcpy(fileNames[j++], buf->getFullPathName());
+				}
+				for (const auto& e : _pendingSessionInserts)
+				{
+					if (j >= nbFileNames) break;
+					if (e.whichOne == SUB_VIEW)
+						lstrcpy(fileNames[j++], e.info._fileName.c_str());
 				}
 			}
 			return j;
@@ -1909,6 +1932,38 @@ LRESULT Notepad_plus::process(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPa
 			_subEditView.execute(SCI_SETVIRTUALSPACEOPTIONS, virtualSpaceOptions);
 
 			return TRUE;
+		}
+
+		// NOTE: NPPM_INTERNAL_LAZYLOADNEXT is also a SetTimer id — handled
+		// via the WM_TIMER case below. This case is kept for any legacy
+		// PostMessage callers but the main pump uses WM_TIMER now.
+		case NPPM_INTERNAL_LAZYLOADNEXT:
+		{
+			processLazyLoadQueueStep();
+			return TRUE;
+		}
+
+		case WM_TIMER:
+		{
+			if (wParam == NPPM_INTERNAL_SESSIONINSERTNEXT)
+			{
+				// Session-insert pump (structural: create lazy tab shells).
+				// Lowest-priority timer so user input always wins.
+				::KillTimer(hwnd, NPPM_INTERNAL_SESSIONINSERTNEXT);
+				processSessionInsertStep();
+				return 0;
+			}
+			break;
+		}
+
+		case NPPM_INTERNAL_LAZYLOADWORKERDONE:
+		{
+			// Posted by the worker thread after it finishes reading a
+			// lazy buffer's bytes from disk. lParam is a heap-allocated
+			// LazyLoadWorkerDonePayload; handleLazyLoadWorkerDone takes
+			// ownership and releases it.
+			handleLazyLoadWorkerDone(reinterpret_cast<void*>(lParam));
+			return 0;
 		}
 
 		case NPPM_INTERNAL_SCROLLBEYONDLASTLINE:

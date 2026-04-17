@@ -21,6 +21,7 @@
 
 #include <ctime>
 #include <memory>
+#include <tuple>
 
 #include "NppXml.h"
 #include "Notepad_plus_Window.h"
@@ -189,6 +190,12 @@ Notepad_plus::~Notepad_plus()
 	// because if the parent's window handle is destroyed before
 	// the destruction of its children windows' handles,
 	// its children windows' handles will be destroyed automatically!
+
+	// Signal the lazy-load worker thread to exit and wait for it to
+	// finish BEFORE anything else is torn down. The worker holds no
+	// pointers into the members being destroyed, but any in-flight
+	// PostMessage would be dispatched to a destroyed window.
+	stopLazyLoadWorker();
 
 	(NppParameters::getInstance()).destroyInstance();
 
@@ -2304,6 +2311,10 @@ bool Notepad_plus::findInOpenedFiles()
 		for (size_t i = 0, len = _mainDocTab.nbItem(); i < len ; ++i)
 		{
 			pBuf = MainFileManager.getBufferByID(_mainDocTab.getBufferByIndex(i));
+			// Lazy buffer: materialise before searching. User explicitly asked
+			// for "find in all open files" so loading the content is expected.
+			if (pBuf->isLazyPending())
+				MainFileManager.resolveLazyBuffer(pBuf->getID());
 			_invisibleEditView.execute(SCI_SETDOCPOINTER, 0, pBuf->getDocument());
 
 			setCodePageForInvisibleView(pBuf);
@@ -2335,6 +2346,8 @@ bool Notepad_plus::findInOpenedFiles()
 			{
 				continue;  // clone was already searched in main; skip re-searching in sub
 			}
+			if (pBuf->isLazyPending())
+				MainFileManager.resolveLazyBuffer(pBuf->getID());
 			_invisibleEditView.execute(SCI_SETDOCPOINTER, 0, pBuf->getDocument());
 
 			setCodePageForInvisibleView(pBuf);
@@ -4893,6 +4906,49 @@ void Notepad_plus::loadBufferIntoView(BufferID id, int whichOne, bool dontClose)
 	}
 }
 
+void Notepad_plus::loadBufferIntoViewAt(BufferID id, int whichOne, int insertIndex)
+{
+	if (insertIndex < 0)
+	{
+		loadBufferIntoView(id, whichOne);
+		return;
+	}
+
+	DocTabView* tabToOpen = (whichOne == MAIN_VIEW) ? &_mainDocTab : &_subDocTab;
+	ScintillaEditView* viewToOpen = (whichOne == MAIN_VIEW) ? &_mainEditView : &_subEditView;
+
+	if (tabToOpen->getIndexByBuffer(id) != -1)
+		return;
+
+	// Trim the dummy "new 1" that NPP auto-creates at startup in a cold view.
+	// Mirrors the dontClose logic from loadBufferIntoView so the tab count
+	// stays right. Only relevant when there's a single untitled clean tab.
+	BufferID idToClose = BUFFER_INVALID;
+	if (tabToOpen->nbItem() == 1)
+	{
+		idToClose = tabToOpen->getBufferByIndex(0);
+		Buffer* buf = MainFileManager.getBufferByID(idToClose);
+		if (buf->isDirty() || !buf->isUntitled())
+			idToClose = BUFFER_INVALID;
+	}
+
+	MainFileManager.addBufferReference(id, viewToOpen);
+
+	if (idToClose != BUFFER_INVALID)
+	{
+		// Replace the dummy tab in place — insertIndex is effectively 0.
+		tabToOpen->setBuffer(0, id);
+		activateBuffer(id, whichOne);
+		MainFileManager.closeBuffer(idToClose, viewToOpen);
+		if (_pDocumentListPanel)
+			_pDocumentListPanel->closeItem(idToClose, whichOne);
+	}
+	else
+	{
+		tabToOpen->addBufferAt(static_cast<size_t>(insertIndex), id);
+	}
+}
+
 bool Notepad_plus::removeBufferFromView(BufferID id, int whichOne)
 {
 	DocTabView * tabToClose = (whichOne == MAIN_VIEW) ? &_mainDocTab : &_subDocTab;
@@ -5218,6 +5274,21 @@ bool Notepad_plus::activateBuffer(BufferID id, int whichOne, bool forceApplyHili
 	}
 
 	Buffer * pBuf = MainFileManager.getBufferByID(id);
+
+	// If this buffer was deferred by lazy-session-load, read its file now
+	// (synchronously) before we let Scintilla paint it. The background queue
+	// would eventually have done the same, but the user is looking at this
+	// tab right now, so jump the queue. Matching the rest of activateBuffer
+	// which assumes pBuf is non-null (caller guarantees the BufferID is
+	// valid), so no defensive null-check here — the static analyser's
+	// C6011 would otherwise flag the unchecked deref two lines below.
+	const bool wasLazy = pBuf->isLazyPending();
+	if (wasLazy)
+	{
+		MainFileManager.resolveLazyBuffer(id);
+		dropLazyLoadFromQueue(id);
+	}
+
 	bool reload = pBuf->getNeedReload();
 	if (reload)
 	{
@@ -5248,6 +5319,17 @@ bool Notepad_plus::activateBuffer(BufferID id, int whichOne, bool forceApplyHili
 			return false;
 	}
 
+	// Apply bookmarks deferred by lazy session restore. The view is now attached
+	// to this buffer's Scintilla doc, so we can just dispatch SCI_MARKERADD.
+	if (wasLazy && pBuf && !pBuf->_lazyPendingMarks.empty())
+	{
+		ScintillaEditView* view = (whichOne == MAIN_VIEW) ? &_mainEditView : &_subEditView;
+		for (size_t mark : pBuf->_lazyPendingMarks)
+			view->execute(SCI_MARKERADD, mark, MARK_BOOKMARK);
+		pBuf->_lazyPendingMarks.clear();
+		pBuf->_lazyPendingMarks.shrink_to_fit();
+	}
+
 	if (reload)
 	{
 		performPostReload(whichOne);
@@ -5256,6 +5338,468 @@ bool Notepad_plus::activateBuffer(BufferID id, int whichOne, bool forceApplyHili
 	notifyBufferActivated(id, whichOne);
 
 	return true;
+}
+
+void Notepad_plus::queueLazyLoad(BufferID id)
+{
+	// No-op guard: the same buffer could be queued twice if a malformed session
+	// duplicated a path. Deduping here is cheaper than doing it at pump time.
+	for (BufferID existing : _lazyLoadQueue)
+	{
+		if (existing == id)
+			return;
+	}
+	_lazyLoadQueue.push_back(id);
+}
+
+void Notepad_plus::dropLazyLoadFromQueue(BufferID id)
+{
+	for (auto it = _lazyLoadQueue.begin(); it != _lazyLoadQueue.end(); ++it)
+	{
+		if (*it == id)
+		{
+			_lazyLoadQueue.erase(it);
+			return;
+		}
+	}
+}
+
+void Notepad_plus::kickLazyLoadQueue()
+{
+	// Superseded by the worker-thread pipeline (startLazyLoadWorker +
+	// enqueueWorkerLazyLoad). Kept as a no-op so any legacy caller does
+	// not crash — the worker path replaces the in-main-thread timer pump
+	// because even a single blocking IO call during a tick freezes the
+	// UI on network / sleeping-drive paths.
+}
+
+// -----------------------------------------------------------------------
+// Worker-thread lazy content pre-fetch
+// -----------------------------------------------------------------------
+//
+// The worker thread pops a LazyLoadWorkerRequest from _lazyLoadWorkerQueue,
+// reads the file bytes (which is the only potentially-slow part) off the
+// main thread, then posts NPPM_INTERNAL_LAZYLOADWORKERDONE to the main
+// window with a heap-allocated payload. The main thread handles all
+// Scintilla operations: document creation, content insertion, encoding
+// conversion, notification fan-out. This keeps the main thread free to
+// dispatch input for the full duration of the IO.
+//
+// Thread-safety:
+//  - Only _lazyLoadWorkerQueue + _lazyLoadWorkerMutex/Cv are shared.
+//    BufferID (a Buffer*) is passed by value into the worker but the
+//    worker NEVER dereferences it. The id is treated as an opaque handle
+//    and re-validated on the main thread before any buffer state is
+//    touched (the main thread owns Buffer lifetime).
+//  - The worker holds no pointers into FileManager state, so closing
+//    a tab while the worker is reading its file can't UAF.
+//  - `std::atomic<bool> _lazyLoadWorkerStop` is the termination flag.
+//    stopLazyLoadWorker sets it, notifies the cv, and joins the thread.
+
+namespace
+{
+	// Payload posted from worker to main. Heap-allocated, deleted by
+	// handleLazyLoadWorkerDone after it applies the content.
+	struct LazyLoadWorkerDonePayload
+	{
+		BufferID id;
+		std::wstring sourcePath; // path bytes were read from; used to guard
+		                         // against Buffer* pointer reuse: if the id
+		                         // resolves to a Buffer whose current backup
+		                         // or full path does not match, it is a new
+		                         // buffer in a reused slot — drop the bytes.
+		std::vector<char> bytes;
+		int encoding;
+		bool fromBackup;
+	};
+
+	// Read an entire file into memory. Returns empty vector on any failure
+	// (missing file, permission denied, disk error). We do NOT diagnose —
+	// main thread will just leave the buffer in lazy state if the bytes
+	// never arrive; the user will hit the standard on-click error path.
+	std::vector<char> readAllBytes(const std::wstring& path)
+	{
+		std::vector<char> out;
+		HANDLE h = ::CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
+			OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
+		if (h == INVALID_HANDLE_VALUE)
+			return out;
+
+		LARGE_INTEGER sz{};
+		if (!::GetFileSizeEx(h, &sz) || sz.QuadPart <= 0 || sz.QuadPart > (1LL << 31))
+		{
+			::CloseHandle(h);
+			return out; // 0 bytes or >2 GB — skip, let on-click path handle it
+		}
+
+		out.resize(static_cast<size_t>(sz.QuadPart));
+		DWORD read = 0;
+		if (!::ReadFile(h, out.data(), static_cast<DWORD>(out.size()), &read, nullptr) || read != out.size())
+			out.clear();
+		::CloseHandle(h);
+		return out;
+	}
+}
+
+void Notepad_plus::startLazyLoadWorker()
+{
+	if (_lazyLoadWorkerThread.joinable())
+		return; // already running
+	_lazyLoadWorkerStop.store(false);
+	_lazyLoadWorkerThread = std::thread(&Notepad_plus::lazyLoadWorkerMain, this);
+}
+
+void Notepad_plus::stopLazyLoadWorker()
+{
+	if (!_lazyLoadWorkerThread.joinable())
+		return;
+	{
+		std::lock_guard<std::mutex> lk(_lazyLoadWorkerMutex);
+		_lazyLoadWorkerStop.store(true);
+		_lazyLoadWorkerQueue.clear();
+	}
+	_lazyLoadWorkerCv.notify_all();
+
+	// Always detach. join() would block closing Notepad++ on however long
+	// the worker is stuck inside ReadFile — for an unreachable path
+	// (stopped WSL distro, disconnected share) that is the SMB timeout
+	// (15+ s). Detach is safe because:
+	//   - the worker holds no pointers into NPP state, so its post-stop
+	//     activity (finish current ReadFile, then exit on the stop flag
+	//     at the next loop iteration) cannot UAF anything we destroy
+	//   - any in-flight PostMessage targets a window handle that is about
+	//     to be destroyed, which Win32 silently no-ops
+	// We avoid using std::thread::native_handle() + WaitForSingleObject
+	// here because native_handle_type is HANDLE on the MSVC STL but
+	// pthread_t on MinGW-w64 with winpthreads, which would break the
+	// MinGW / CLANG64 CI matrix.
+	_lazyLoadWorkerThread.detach();
+}
+
+void Notepad_plus::lazyLoadWorkerMain()
+{
+	for (;;)
+	{
+		LazyLoadWorkerRequest req;
+		{
+			std::unique_lock<std::mutex> lk(_lazyLoadWorkerMutex);
+			_lazyLoadWorkerCv.wait(lk, [this]{
+				return _lazyLoadWorkerStop.load() || !_lazyLoadWorkerQueue.empty();
+			});
+			if (_lazyLoadWorkerStop.load())
+				return;
+			req = std::move(_lazyLoadWorkerQueue.front());
+			_lazyLoadWorkerQueue.pop_front();
+		}
+
+		std::vector<char> bytes = readAllBytes(req.sourcePath);
+		if (bytes.empty())
+			continue; // leave buffer lazy; activation path will try again
+
+		// Build the payload through unique_ptr to satisfy /analyze C26403
+		// (owner pointers must have an explicit transfer of ownership).
+		// Ownership transfers to the main thread via PostMessage; if Post
+		// fails (very rare — e.g. window destroyed during shutdown) the
+		// unique_ptr deletes for us.
+		auto payload = std::make_unique<LazyLoadWorkerDonePayload>(
+			LazyLoadWorkerDonePayload{
+				req.id, req.sourcePath, std::move(bytes),
+				req.encoding, req.fromBackup
+			});
+		if (::PostMessage(_pPublicInterface->getHSelf(),
+				NPPM_INTERNAL_LAZYLOADWORKERDONE, 0,
+				reinterpret_cast<LPARAM>(payload.get())))
+		{
+			payload.release();
+		}
+	}
+}
+
+void Notepad_plus::enqueueWorkerLazyLoad(BufferID id)
+{
+	// Read buffer state on main thread under no lock — Buffer mutation
+	// only happens on main thread, so the read is safe here.
+	Buffer* buf = MainFileManager.getBufferByID(id);
+	if (!buf || !buf->isLazyPending())
+		return;
+
+	LazyLoadWorkerRequest req;
+	req.id = id;
+	req.encoding = buf->getEncoding();
+	const std::wstring& backup = buf->getBackupFileName();
+	if (!backup.empty())
+	{
+		req.sourcePath = backup;
+		req.fromBackup = true;
+	}
+	else
+	{
+		req.sourcePath = buf->getFullPathName();
+		req.fromBackup = false;
+	}
+
+	{
+		std::lock_guard<std::mutex> lk(_lazyLoadWorkerMutex);
+		// Skip if already queued for the worker.
+		for (const auto& q : _lazyLoadWorkerQueue)
+			if (q.id == id) return;
+		_lazyLoadWorkerQueue.push_back(std::move(req));
+	}
+	_lazyLoadWorkerCv.notify_one();
+	startLazyLoadWorker();
+}
+
+void Notepad_plus::handleLazyLoadWorkerDone(void* rawPayload)
+{
+	std::unique_ptr<LazyLoadWorkerDonePayload> p(
+		static_cast<LazyLoadWorkerDonePayload*>(rawPayload));
+	if (!p) return;
+
+	// Validate the BufferID:
+	//  1. Buffer must still be in _buffers (tab not closed in the meantime).
+	//  2. Buffer must still be lazy-pending (main thread may have resolved
+	//     it synchronously via activateBuffer / findInOpenedFiles hook while
+	//     the worker was reading).
+	//  3. Buffer's path must still match what the worker read FROM. BufferID
+	//     is a Buffer* and Windows' heap may reuse a freed address for a
+	//     newly opened buffer; without this check the payload could end up
+	//     applied to an unrelated buffer.
+	if (MainFileManager.getBufferIndexByID(p->id) < 0)
+		return;
+	Buffer* buf = MainFileManager.getBufferByID(p->id);
+	if (!buf || !buf->isLazyPending())
+		return;
+	const std::wstring& currentPath = p->fromBackup
+		? buf->getBackupFileName()
+		: std::wstring(buf->getFullPathName());
+	if (currentPath != p->sourcePath)
+		return;
+
+	// Defer the actual Scintilla doc creation + byte insertion to
+	// FileManager, which already owns the scratchTilla view. See
+	// FileManager::applyLazyContent.
+	MainFileManager.applyLazyContent(p->id, p->bytes.data(), p->bytes.size(),
+		p->encoding, p->fromBackup);
+}
+
+void Notepad_plus::processLazyLoadQueueStep()
+{
+	_lazyLoadPumpArmed = false;
+
+	if (_lazyLoadQueue.empty())
+		return;
+
+	BufferID id = _lazyLoadQueue.front();
+	_lazyLoadQueue.pop_front();
+
+	Buffer* buf = MainFileManager.getBufferByID(id);
+	if (buf && buf->isLazyPending())
+		MainFileManager.resolveLazyBuffer(id);
+
+	// Re-arm until the queue is empty. One load per message tick keeps the
+	// UI responsive — user input (including a tab click that fronts an entry)
+	// is handled between ticks.
+	kickLazyLoadQueue();
+}
+
+void Notepad_plus::kickSessionInsertQueue()
+{
+	if (_sessionInsertPumpArmed || _pendingSessionInserts.empty())
+		return;
+	_sessionInsertPumpArmed = true;
+	// Use WM_TIMER rather than a regular PostMessage. WM_TIMER has the
+	// LOWEST priority in the message queue — Windows only delivers it when
+	// no other messages (including input and paint) are pending. That
+	// means the pump cannot keep the thread "busy from the OS point of
+	// view" and the wait-cursor / not-responding state stops showing up
+	// while 300+ tabs fill in the background.
+	::SetTimer(_pPublicInterface->getHSelf(), NPPM_INTERNAL_SESSIONINSERTNEXT, USER_TIMER_MINIMUM, nullptr);
+}
+
+void Notepad_plus::processSessionInsertStep()
+{
+	_sessionInsertPumpArmed = false;
+
+	// Diagnostic minimum: 1 entry per tick means each message-pump handler
+	// executes roughly a single newLazy* + tab insert + metadata set (~5 ms)
+	// and then yields. If this STILL blocks the UI thread noticeably, the
+	// culprit is per-entry work inside newLazyDocument / loadBufferIntoViewAt
+	// rather than aggregated batch duration, and we will need to profile
+	// those specifically.
+	constexpr int kPerTick = 1;
+	const NppGUI& nppGUI = NppParameters::getInstance().getNppGUI();
+	const bool isSnapshotMode = nppGUI.isSnapshotMode();
+
+	for (int n = 0; n < kPerTick && !_pendingSessionInserts.empty(); ++n)
+	{
+		PendingSessionInsert entry = _pendingSessionInserts.front();
+		_pendingSessionInserts.pop_front();
+
+		const wchar_t* pFn = entry.info._fileName.c_str();
+		const int whichOne = entry.whichOne;
+
+		// CRITICAL: do NOT call doesFileExist / GetFileAttributesExW on the
+		// SESSION filename here. A session may contain unreachable paths
+		// (\\wsl.localhost\... with WSL stopped, disconnected UNC shares,
+		// unplugged external drives). Stat on those blocks the main thread
+		// for the SMB / NFS timeout (15–30 s), re-introducing the freeze we
+		// are trying to eliminate. Decide tab type from the session filename
+		// string alone; resolveLazyBuffer handles any IO at activation.
+		//
+		// Discriminator: PathIsRelativeW returns FALSE for absolute
+		// filesystem paths ("C:\...", "\\wsl.localhost\...", "\\?\C:\..."),
+		// TRUE for everything else (bare "new N" tab names).
+		const bool isAbsolutePath = !::PathIsRelativeW(entry.info._fileName.c_str());
+
+		// Backup paths on the other hand are ALWAYS local (the NPP
+		// backup/ directory under AppData / config dir), so the
+		// existence probe is safe and fast (<1 ms). We need this check
+		// to match eager snapshot-restore semantics:
+		//   * session entry has a non-empty backup path
+		//   * AND that backup file actually exists on disk
+		//     => this tab had unsaved edits; mark dirty
+		//   * otherwise, stale reference from a previous session where the
+		//     backup was manually deleted => tab is clean
+		// Without the existence check every backup-referenced tab became
+		// dirty unconditionally, giving the wrong (red) dirty icon and
+		// firing a spurious "Your backup file cannot be found" prompt
+		// per tab on shutdown.
+		bool hasValidBackup = false;
+		if (!entry.info._backupFilePath.empty())
+		{
+			WIN32_FILE_ATTRIBUTE_DATA a{};
+			hasValidBackup = ::GetFileAttributesExW(entry.info._backupFilePath.c_str(),
+					GetFileExInfoStandard, &a)
+				&& a.dwFileAttributes != INVALID_FILE_ATTRIBUTES
+				&& !(a.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+		}
+
+		// Compute insertion index so tabs appear in original session order
+		// regardless of the fact that the active tab was inserted first
+		// (sync in loadSession, currently sitting at position 0 on the bar).
+		// Rule: insert entry at its session index. Because the pump processes
+		// in session order and the active tab sits in front of the cursor as
+		// we process entries before the active's session index, the tab-bar
+		// size at processing time equals `sessionIndex`, so `TCM_INSERTITEM`
+		// at that index is always valid.
+		const int insertTabIndex = static_cast<int>(entry.sessionIndex);
+
+		BufferID id = BUFFER_INVALID;
+		if (isAbsolutePath)
+		{
+			// Regular file tab. Pass the backup path only when the file
+			// actually exists — otherwise the buffer would be wrongly
+			// marked dirty (bug 1: red icon) and fileCloseAll would fire
+			// the "Your backup file cannot be found" prompt at shutdown
+			// (bug 2).
+			id = MainFileManager.newLazyDocument(
+				pFn, whichOne, entry.info._encoding,
+				(isSnapshotMode && hasValidBackup) ? entry.info._backupFilePath.c_str() : nullptr,
+				entry.info._originalFileLastModifTimestamp,
+				insertTabIndex);
+		}
+		else if (isSnapshotMode && hasValidBackup)
+		{
+			// Untitled "new N" tab restored from its snapshot backup file.
+			// Requires the backup to exist; a stale reference would leave
+			// the user with an empty tab anyway.
+			id = MainFileManager.newLazyBackupDocument(
+				pFn, entry.info._backupFilePath.c_str(),
+				whichOne, entry.info._encoding,
+				entry.info._originalFileLastModifTimestamp,
+				insertTabIndex);
+		}
+		else
+		{
+			// Orphaned entry (backup path missing or file on disk gone).
+			// Skip silently to match the synchronous path, which erases
+			// such entries from the session.
+			continue;
+		}
+
+		if (id == BUFFER_INVALID)
+			continue;
+
+		Buffer* buf = MainFileManager.getBufferByID(id);
+		if (!buf)
+			continue;
+
+		// Apply session metadata — same set the synchronous loop applies. All
+		// these setters are no-op for notifications while isLazyPending is true;
+		// resolveLazyBuffer fires a single omnibus notify later.
+		buf->setPosition(entry.info, (whichOne == MAIN_VIEW) ? &_mainEditView : &_subEditView);
+		buf->setMapPosition(entry.info._mapPos);
+
+		// Language resolution (same logic as main-view block in loadSession).
+		const wchar_t* pLn = entry.info._langName.c_str();
+		int langId = getLangFromMenuName(pLn);
+		LangType lang2set = L_TEXT;
+		if (!langId)
+		{
+			for (size_t k = 0; k < nppGUI._excludedLangList.size(); ++k)
+			{
+				if (nppGUI._excludedLangList[k]._langName == pLn)
+				{
+					lang2set = nppGUI._excludedLangList[k]._langType;
+					break;
+				}
+			}
+		}
+		else if (langId != IDM_LANG_USER)
+		{
+			lang2set = menuID2LangType(langId);
+		}
+		if (lang2set == L_EXTERNAL)
+			lang2set = (LangType)(langId - IDM_LANG_EXTERNAL + L_EXTERNAL);
+		buf->setLangType(lang2set, pLn);
+
+		if (entry.info._encoding != -1)
+			buf->setEncoding(entry.info._encoding);
+		buf->setUserReadOnly(entry.info._isUserReadOnly || nppGUI._isFullReadOnly || nppGUI._isFullReadOnlySavingForbidden);
+		buf->setPinned(entry.info._isPinned);
+		buf->setUntitledTabRenamedStatus(entry.info._isUntitledTabRenamed);
+		buf->setRTL(entry.info._isRTL);
+
+		DocTabView& tabs = (whichOne == MAIN_VIEW) ? _mainDocTab : _subDocTab;
+		tabs.setIndividualTabColour(id, entry.info._individualTabColour);
+		if (!entry.info._foldStates.empty())
+			buf->setHeaderLineState(entry.info._foldStates, (whichOne == MAIN_VIEW) ? &_mainEditView : &_subEditView);
+		buf->_lazyPendingMarks = entry.info._marks;
+		std::ignore = entry.isActive; // active is handled sync in loadSession
+
+		// Kick the worker-thread pre-fetch. The worker reads file bytes
+		// off the main thread and posts them back via
+		// NPPM_INTERNAL_LAZYLOADWORKERDONE, so the main thread only ever
+		// blocks to apply the bytes to Scintilla (fast, no IO).
+		enqueueWorkerLazyLoad(id);
+	}
+
+	// BEFORE scheduling the next pump tick, explicitly dispatch any pending
+	// paint messages. WM_PAINT is synthetic (generated from a dirty region,
+	// not queued), so in a tight PostMessage->handler->PostMessage loop the
+	// message queue never "empties" and GetMessage never returns WM_PAINT —
+	// the menu bar / toolbar / main window stay unpainted for seconds. Pump
+	// paint explicitly here so UI chrome appears immediately.
+	{
+		MSG __paint;
+		while (::PeekMessageW(&__paint, nullptr, WM_PAINT, WM_PAINT, PM_REMOVE))
+		{
+			::TranslateMessage(&__paint);
+			::DispatchMessageW(&__paint);
+		}
+	}
+
+	if (!_pendingSessionInserts.empty())
+	{
+		kickSessionInsertQueue();
+	}
+	else
+	{
+		::SendMessage(_mainDocTab.getHSelf(), WM_SETREDRAW, TRUE, 0);
+		::RedrawWindow(_mainDocTab.getHSelf(), nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN);
+		::SendMessage(_subDocTab.getHSelf(), WM_SETREDRAW, TRUE, 0);
+		::RedrawWindow(_subDocTab.getHSelf(), nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN);
+	}
 }
 
 void Notepad_plus::performPostReload(int whichOne)
@@ -6535,6 +7079,29 @@ bool Notepad_plus::getIntegralDockingData(DockedWidgetData & dockData, int & iCo
 
 void Notepad_plus::getCurrentOpenedFiles(Session & session, bool includeUntitledDoc)
 {
+	// R2: drain any pending lazy-session inserts first. Without this, a user
+	// that closes Notepad++ before the background pump finishes restoring
+	// their 300+ tab session loses every un-materialised tab from session.xml
+	// (they aren't in _mainDocTab/_subDocTab yet). Synchronous drain at close
+	// is fine — it's a 1–2 s one-time cost at shutdown, not startup.
+	while (!_pendingSessionInserts.empty())
+		processSessionInsertStep();
+
+	// After structural drain, resolve content for UNTITLED backup-restored
+	// buffers ONLY. getCurrentOpenedFiles drops untitled tabs with
+	// docLength==0, and their identity IS the backup content — losing that
+	// loses the user's unsaved edits. Regular lazy buffers serialize fine
+	// from path + metadata (isUntitled=false → filter doesn't drop them);
+	// we skip content load for them and the SCI_SETDOCPOINTER path below
+	// is guarded against null Documents. This cuts close time from ~17 s to
+	// ~1–2 s on a 300-tab session (untitled backups only).
+	for (size_t i = 0; i < MainFileManager.getNbBuffers(); ++i)
+	{
+		Buffer* b = MainFileManager.getBufferByIndex(i);
+		if (b && b->isLazyPending() && b->getStatus() == DOC_UNNAMED)
+			MainFileManager.resolveLazyBuffer(b->getID());
+	}
+
 	_mainEditView.saveCurrentPos();	//save position so itll be correct in the session
 	_subEditView.saveCurrentPos();	//both views
 	session._activeView = currentView();
@@ -6590,13 +7157,25 @@ void Notepad_plus::getCurrentOpenedFiles(Session & session, bool includeUntitled
 			sfi._individualTabColour = docTab[k]->getIndividualTabColourId(static_cast<int>(i));
 			sfi._isRTL = buf->isRTL();
 
-			_invisibleEditView.execute(SCI_SETDOCPOINTER, 0, buf->getDocument());
-
-			auto nextMarkedLine = _invisibleEditView.execute(SCI_MARKERNEXT, 0, (1 << MARK_BOOKMARK));
-			while (nextMarkedLine != -1)
+			// Lazy buffers whose content was never materialised have no
+			// Scintilla Document. They also have no live bookmarks to
+			// serialize (marks only exist on a loaded doc), so skip the
+			// marker enumeration entirely. _lazyPendingMarks is the
+			// authoritative list for these.
+			if (buf->getDocument())
 			{
-				sfi._marks.push_back(nextMarkedLine);
-				nextMarkedLine = _invisibleEditView.execute(SCI_MARKERNEXT, nextMarkedLine + 1, (1 << MARK_BOOKMARK));
+				_invisibleEditView.execute(SCI_SETDOCPOINTER, 0, buf->getDocument());
+
+				auto nextMarkedLine = _invisibleEditView.execute(SCI_MARKERNEXT, 0, (1 << MARK_BOOKMARK));
+				while (nextMarkedLine != -1)
+				{
+					sfi._marks.push_back(nextMarkedLine);
+					nextMarkedLine = _invisibleEditView.execute(SCI_MARKERNEXT, nextMarkedLine + 1, (1 << MARK_BOOKMARK));
+				}
+			}
+			else if (!buf->_lazyPendingMarks.empty())
+			{
+				sfi._marks = buf->_lazyPendingMarks;
 			}
 
 			if (i == activeIndex)

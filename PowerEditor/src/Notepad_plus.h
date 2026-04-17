@@ -16,6 +16,12 @@
 
 #pragma once
 
+#include <atomic>
+#include <condition_variable>
+#include <deque>
+#include <mutex>
+#include <thread>
+#include <vector>
 #include "ScintillaEditView.h"
 #include "DocTabView.h"
 #include "SplitterContainer.h"
@@ -294,6 +300,44 @@ private:
 	DockingManager _dockingManager;
 	std::vector<int> _internalFuncIDs;
 
+	// Lazy session load queue. std::deque supports O(1) pop-front for the
+	// worker pump and O(n) erase to drop a buffer the user just activated.
+	// BufferIDs are stable for the lifetime of a buffer, so they're safe to
+	// hold across message pumps.
+	std::deque<BufferID> _lazyLoadQueue;
+	bool _lazyLoadPumpArmed = false; // true after PostMessage, cleared in handler to avoid flooding the queue
+
+	// Deferred session-restore inserts. loadSession synchronously processes
+	// only the active tab; everything else is enqueued here and the message
+	// pump inserts one entry per WM_APP_SESSION_INSERT_NEXT tick. Each entry
+	// is a (sessionFileInfo copy, whichOne) — the session's own vector is
+	// NOT safe to retain pointers into because it is mutated during restore.
+	struct PendingSessionInsert
+	{
+		sessionFileInfo info;
+		int whichOne;        // MAIN_VIEW or SUB_VIEW
+		size_t sessionIndex; // position in session._mainViewFiles / _subViewFiles;
+		                     // used to insert each tab at its original tab-bar slot so
+		                     // the active-inserted-first hack does not reorder tabs
+		bool isActive = false; // reserved; currently active is inserted sync by loadSession
+	};
+	std::deque<PendingSessionInsert> _pendingSessionInserts;
+	bool _sessionInsertPumpArmed = false;
+
+	// Worker-thread content pre-fetch. See startLazyLoadWorker / worker main.
+	struct LazyLoadWorkerRequest
+	{
+		BufferID id = nullptr;
+		std::wstring sourcePath; // path to read bytes from (backup if present, else fullPathName)
+		bool fromBackup = false; // whether sourcePath is the snapshot backup
+		int encoding = -1;       // buffer's encoding at queue time
+	};
+	std::deque<LazyLoadWorkerRequest> _lazyLoadWorkerQueue;
+	std::mutex _lazyLoadWorkerMutex;
+	std::condition_variable _lazyLoadWorkerCv;
+	std::thread _lazyLoadWorkerThread;
+	std::atomic<bool> _lazyLoadWorkerStop{false};
+
 	AutoCompletion _autoCompleteMain;
 	AutoCompletion _autoCompleteSub; // each Scintilla has its own autoComplete
 
@@ -477,11 +521,41 @@ private:
 	void docOpenInNewInstance(FileTransferMode mode, int x = 0, int y = 0);
 
 	void loadBufferIntoView(BufferID id, int whichOne, bool dontClose = false);		//Doesn't _activate_ the buffer
+
+	// Insert the buffer's tab at a specific tab-bar index instead of appending.
+	// Used by the lazy-session pump to restore exact session tab order. If
+	// insertIndex < 0 the behaviour is identical to loadBufferIntoView.
+	void loadBufferIntoViewAt(BufferID id, int whichOne, int insertIndex);
 	bool removeBufferFromView(BufferID id, int whichOne);	//Activates alternative of possible, or creates clean document if not clean already
 
 	bool activateBuffer(BufferID id, int whichOne, bool forceApplyHilite = false);			//activate buffer in that view if found
 	void notifyBufferActivated(BufferID bufid, int view);
 	void performPostReload(int whichOne);
+
+	// Lazy session load: queue management. The queue is processed one buffer
+	// per WM_APP message loop tick so the UI stays responsive during a cold
+	// start with many session files. User activation of a pending tab calls
+	// resolveLazyBuffer synchronously and drops the tab from the queue.
+	void queueLazyLoad(BufferID id);
+	void dropLazyLoadFromQueue(BufferID id);
+	void processLazyLoadQueueStep();
+	void kickLazyLoadQueue();
+
+	// Worker-thread content pre-fetch: takes BufferIDs from
+	// _lazyLoadWorkerQueue, reads file bytes off the main thread, and posts
+	// each completed read back via NPPM_INTERNAL_LAZYLOADWORKERDONE. Main
+	// thread applies the bytes to the Scintilla document on arrival.
+	void startLazyLoadWorker();
+	void stopLazyLoadWorker();
+	void lazyLoadWorkerMain();
+	void enqueueWorkerLazyLoad(BufferID id);
+	void handleLazyLoadWorkerDone(void* payload);
+
+	// Deferred session insertion: the message-pump-driven worker that
+	// materialises one pending session entry per tick, keeping the UI
+	// interactive while a 300+ tab session finishes restoring in the background.
+	void kickSessionInsertQueue();
+	void processSessionInsertStep();
 //END: Document management
 
 	int doSaveOrNot(const wchar_t *fn, bool isMulti = false);

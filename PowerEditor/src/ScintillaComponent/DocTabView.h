@@ -47,6 +47,30 @@ public:
 	}
 
 	void addBuffer(BufferID buffer);
+
+	// Insert at an explicit tab-control index. Used by the lazy-session
+	// pump to restore the original session tab order even though the
+	// active tab was inserted first. `index` must be <= current nbItem().
+	void addBufferAt(size_t index, BufferID buffer);
+
+	// Batch-insert mode for session restore: while a batch is open, addBuffer
+	// skips the per-tab WM_SIZE relayout (which is O(N) → quadratic over 300+
+	// tabs) and suspends tab-control redraw. endBatchInsert() flushes once.
+	void beginBatchInsert();
+	void endBatchInsert();
+
+	// RAII guard — prefer this over raw begin/end so the tab bar is guaranteed
+	// to be un-frozen even if an exception escapes the caller.
+	class BatchInsertGuard
+	{
+		DocTabView* _v;
+	public:
+		explicit BatchInsertGuard(DocTabView* v) : _v(v) { if (_v) _v->beginBatchInsert(); }
+		~BatchInsertGuard() { if (_v) _v->endBatchInsert(); }
+		BatchInsertGuard(const BatchInsertGuard&) = delete;
+		BatchInsertGuard& operator=(const BatchInsertGuard&) = delete;
+	};
+
 	void closeBuffer(BufferID buffer);
 	void bufferUpdated(const Buffer* buffer, int mask);
 
@@ -99,6 +123,8 @@ private :
 
 	std::vector<IconList *> _pIconListVector;
 	int _iconListIndexChoice = -1;
+
+	int _batchInsertDepth = 0; // >0 while addBuffer should skip per-tab WM_SIZE/redraw
 
 	using Window::init;
 	using TabBar::init;
