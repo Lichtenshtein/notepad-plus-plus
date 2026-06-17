@@ -40,6 +40,7 @@
 #include "dpiManagerV2.h"
 #include "resource.h"
 #include "verifySignedfile.h"
+#include "ScintillaComponent/LargeFileViewer.h"
 
 typedef std::vector<std::wstring> ParamVector;
 
@@ -578,6 +579,25 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE /*hPrevInstance
 	std::wstring cmdLineString = pCmdLine ? pCmdLine : L"";
 	ParamVector params;
 	parseCommandLine(pCmdLine, params);
+
+	// PoC (huge-file performance): a self-contained, memory-mapped "windowed"
+	// viewer. It bypasses normal startup so peak memory is decoupled from file
+	// size. Trigger:  notepad++.exe -largefilepoc "C:\path\huge.log"
+	if (isInList(L"-largefilepoc", params))
+	{
+		const bool benchMode = isInList(L"-pocbench", params); // erase the flag first
+		std::wstring lfPath;
+		for (const std::wstring& a : params)
+		{
+			if (!a.empty() && a[0] != L'-' && a[0] != L'/')
+			{
+				lfPath = a;
+				break;
+			}
+		}
+		if (!lfPath.empty())
+			return LargeFileViewer::runStandalone(::GetModuleHandle(nullptr), lfPath.c_str(), benchMode);
+	}
 
 
 	// Convert commandline to notepad-compatible format, if applicable
