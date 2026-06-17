@@ -35,6 +35,7 @@
 #include <Scintilla.h>
 
 #include "Buffer.h"
+#include "LargeFileViewer.h"
 #include "Common.h"
 #include "CustomFileDialog.h"
 #include "DocTabView.h"
@@ -427,6 +428,24 @@ BufferID Notepad_plus::doOpen(const wstring& fileName, bool isRecursive, bool is
 #endif
 				return BUFFER_INVALID;
 			}
+		}
+	}
+
+	// Huge file: offer the low-memory windowed viewer instead of loading it all into
+	// memory. Only for a real existing single file (not snapshot/glob/session/workspace,
+	// all handled above). If the viewer takes it, stop the normal load here.
+	if (!isSnapshotMode && longFileNameExists && !globbing)
+	{
+		if (LargeFileViewer::offerForHugeFile(_pPublicInterface->getHSelf(), longFileName))
+		{
+#ifndef	_WIN64
+			if (isWow64Off)
+			{
+				nppParam.safeWow64EnableWow64FsRedirection(TRUE);
+				isWow64Off = false;
+			}
+#endif
+			return BUFFER_INVALID;
 		}
 	}
 

@@ -160,6 +160,7 @@
     <ClCompile Include="..\src\WinControls\shortcut\RunMacroDlg.cpp" />
     <ClCompile Include="..\src\ScintillaComponent\ScintillaCtrls.cpp" />
     <ClCompile Include="..\src\ScintillaComponent\ScintillaEditView.cpp" />
+    <ClCompile Include="..\src\ScintillaComponent\LargeFileViewer.cpp" />
     <ClCompile Include="..\src\WinControls\shortcut\shortcut.cpp" />
     <ClCompile Include="..\src\WinControls\Grid\ShortcutMapper.cpp" />
     <ClCompile Include="..\src\WinControls\TreeView\TreeView.cpp" />
@@ -322,6 +323,7 @@
     <ClInclude Include="..\src\WinControls\shortcut\RunMacroDlg_rc.h" />
     <ClInclude Include="..\src\ScintillaComponent\ScintillaCtrls.h" />
     <ClInclude Include="..\src\ScintillaComponent\ScintillaEditView.h" />
+    <ClInclude Include="..\src\ScintillaComponent\LargeFileViewer.h" />
     <ClInclude Include="..\src\WinControls\shortcut\shortcut.h" />
     <ClInclude Include="..\src\WinControls\Grid\ShortcutMapper.h" />
     <ClInclude Include="..\src\WinControls\Grid\ShortcutMapper_rc.h" />
