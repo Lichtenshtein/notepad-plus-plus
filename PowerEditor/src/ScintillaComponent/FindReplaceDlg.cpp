@@ -6374,6 +6374,90 @@ intptr_t CALLBACK FindIncrementDlg::run_dlgProc(UINT message, WPARAM wParam, LPA
 			return NppDarkMode::onCtlColorDlg(reinterpret_cast<HDC>(wParam));
 		}
 
+		case WM_SIZE:
+		{
+			// The .rc lays the trailing controls (Match case, Highlight all, match-count)
+			// at fixed x-coords that fall off a narrow bar, so they get clipped. Re-flow
+			// the three as a group whose spacing shrinks with the bar: at full width the
+			// gaps match the original design (never wider, so the bar doesn't look sparse);
+			// as the bar narrows the gaps shrink down to a minimum; once they hit the
+			// minimum the controls are packed end-to-end and the count simply clips.
+			HWND hNext   = ::GetDlgItem(_hSelf, IDC_INCFINDNXTOK);
+			HWND hCase   = ::GetDlgItem(_hSelf, IDC_INCFINDMATCHCASE);
+			HWND hHilite = ::GetDlgItem(_hSelf, IDC_INCFINDHILITEALL);
+			HWND hStatus = ::GetDlgItem(_hSelf, IDC_INCFINDSTATUS);
+			if (hNext && hCase && hHilite && hStatus)
+			{
+				// Designed geometry from the .rc (dialog units -> pixels). Using the design
+				// as the upper bound guarantees we never spread wider than intended.
+				auto toPx = [this](int x, int y, int w, int h) {
+					RECT r{ x, y, x + w, y + h };
+					::MapDialogRect(_hSelf, &r);
+					return r;
+				};
+				const RECT dBtn    = toPx(263, 3,  16, 14); // IDC_INCFINDNXTOK
+				const RECT dCase   = toPx(290, 5, 100, 12);
+				const RECT dHilite = toPx(400, 5, 100, 12);
+				const RECT dStatus = toPx(520, 6, 180, 12);
+
+				// Designed (maximum) gaps and checkbox widths.
+				const int caseWd   = dCase.right - dCase.left;
+				const int hiliteWd = dHilite.right - dHilite.left;
+				const int g1d = dCase.left   - dBtn.right;
+				const int g2d = dHilite.left - dCase.right;
+				const int g3d = dStatus.left - dHilite.right;
+
+				// Minimums: gaps to a readable minimum; checkboxes shrink to just fit their
+				// text (BCM_GETIDEALSIZE), so the empty padding after "Match case" /
+				// "Highlight all" is reclaimed before the count text is ever clipped.
+				const int gapMin     = toPx(0, 0,  6, 0).right;
+				const int minStatusW = toPx(0, 0, 70, 0).right; // room for e.g. "9999 matches"
+				SIZE idealCase{}, idealHilite{};
+				::SendMessage(hCase,   BCM_GETIDEALSIZE, 0, reinterpret_cast<LPARAM>(&idealCase));
+				::SendMessage(hHilite, BCM_GETIDEALSIZE, 0, reinterpret_cast<LPARAM>(&idealHilite));
+				const int caseWmin   = (idealCase.cx   > 0 && idealCase.cx   < caseWd)   ? idealCase.cx   : caseWd;
+				const int hiliteWmin = (idealHilite.cx > 0 && idealHilite.cx < hiliteWd) ? idealHilite.cx : hiliteWd;
+
+				RECT rcClient{};
+				::GetClientRect(_hSelf, &rcClient);
+				const int barW = rcClient.right;
+
+				// A single factor drives every flexible piece (3 gaps + 2 checkbox paddings)
+				// together: f==1 is the full original design (so status lands at its designed
+				// x), f==0 is everything at its minimum. Only once f reaches 0 does the count
+				// text begin to clip.
+				const int designSpan = g1d + caseWd + g2d + hiliteWd + g3d + minStatusW;
+				const int minSpan    = gapMin + caseWmin + gapMin + hiliteWmin + gapMin + minStatusW;
+				const int avail = barW - dBtn.right - g3d; // span after the buttons, keeping a right margin
+
+				double f = 1.0;
+				if (avail < designSpan)
+				{
+					const int compressible = designSpan - minSpan;
+					f = (compressible > 0) ? static_cast<double>(avail - minSpan) / compressible : 0.0;
+					if (f < 0.0) f = 0.0;
+					if (f > 1.0) f = 1.0;
+				}
+
+				auto lerp = [f](int mn, int mx) { return mn + static_cast<int>((mx - mn) * f); };
+				const int g1 = lerp(gapMin, g1d);
+				const int g2 = lerp(gapMin, g2d);
+				const int g3 = lerp(gapMin, g3d);
+				const int caseW   = lerp(caseWmin, caseWd);
+				const int hiliteW = lerp(hiliteWmin, hiliteWd);
+
+				int x = dBtn.right + g1;
+				::MoveWindow(hCase,   x, dCase.top,   caseW,   dCase.bottom - dCase.top,     TRUE);
+				x += caseW + g2;
+				::MoveWindow(hHilite, x, dHilite.top, hiliteW, dHilite.bottom - dHilite.top, TRUE);
+				x += hiliteW + g3;
+				int w = barW - x - g3; // count takes the remaining width (single line)
+				if (w < 0) w = 0;
+				::MoveWindow(hStatus, x, dStatus.top, w, dStatus.bottom - dStatus.top, TRUE);
+			}
+			break;
+		}
+
 		case WM_PRINTCLIENT:
 		{
 			if (NppDarkMode::isEnabled())
