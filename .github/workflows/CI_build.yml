@@ -1,6 +1,12 @@
 name: CI_build
 
-on: [push, pull_request]
+on:
+  # push:
+    # branches: [ main, master ]
+    # tags: [ 'v*' ]
+  # pull_request:
+    # branches: [ main, master ]
+ workflow_dispatch:
 env:
   PYTHON_ALLOW_CACHE: true
   PYTHON_DIR_CACHE: D:\.cache\python
@@ -30,8 +36,8 @@ jobs:
         $files_nowork = "md|txt|log|ini"
         $files_needwork = "CMakeLists\.txt"
 
-        $matrix_all = 'matrix={"build_configuration": ["Release", "Debug"], "build_platform": ["x64", "Win32", "ARM64"]}'
-        $matrix_onejob = 'matrix={"build_configuration": ["Debug"], "build_platform": ["Win32"]}'
+        $matrix_all = 'matrix={"build_configuration": ["Release"], "build_platform": ["x64"]}'
+        # $matrix_onejob = 'matrix={"build_configuration": ["Debug"], "build_platform": ["Win32"]}'
         Write-Output $matrix_all >> $env:GITHUB_OUTPUT
 
         $isPush = "${{github.event_name }}" -eq "push" ? $true : $false
@@ -335,31 +341,31 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - msys: MINGW32
-            env: i686
-            arch: i686
-            configuration: Release
-            compiler: gcc
-          - msys: MINGW32
-            env: i686
-            arch: i686
-            configuration: Debug
-            compiler: gcc
+          # - msys: MINGW32
+            # env: i686
+            # arch: i686
+            # configuration: Release
+            # compiler: gcc
+          # - msys: MINGW32
+            # env: i686
+            # arch: i686
+            # configuration: Debug
+            # compiler: gcc
           - msys: MINGW64
             env: x86_64
             arch: x86_64
             configuration: Release
             compiler: gcc
-          - msys: MINGW64
-            env: x86_64
-            arch: x86_64
-            configuration: Debug
-            compiler: gcc
-          - msys: CLANG64
-            env: clang-x86_64
-            arch: x86_64
-            configuration: Release
-            compiler: clang
+          # - msys: MINGW64
+            # env: x86_64
+            # arch: x86_64
+            # configuration: Debug
+            # compiler: gcc
+          # - msys: CLANG64
+            # env: clang-x86_64
+            # arch: x86_64
+            # configuration: Release
+            # compiler: clang
 
     name: ${{ matrix.msys }} - ${{ matrix.configuration }}
 
