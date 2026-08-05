@@ -282,7 +282,7 @@ jobs:
 
     runs-on: windows-latest
     needs: before_build
-    if: needs.before_build.outputs.result == ''
+    if: false && needs.before_build.outputs.result == ''
     strategy:
       matrix:
         include:
@@ -336,36 +336,36 @@ jobs:
 
     runs-on: windows-latest
     needs: before_build
-    if: needs.before_build.outputs.result == ''
+    if: false && needs.before_build.outputs.result == ''
     strategy:
       fail-fast: false
       matrix:
         include:
-          # - msys: MINGW32
-            # env: i686
-            # arch: i686
-            # configuration: Release
-            # compiler: gcc
-          # - msys: MINGW32
-            # env: i686
-            # arch: i686
-            # configuration: Debug
-            # compiler: gcc
+          - msys: MINGW32
+            env: i686
+            arch: i686
+            configuration: Release
+            compiler: gcc
+          - msys: MINGW32
+            env: i686
+            arch: i686
+            configuration: Debug
+            compiler: gcc
           - msys: MINGW64
             env: x86_64
             arch: x86_64
             configuration: Release
             compiler: gcc
-          # - msys: MINGW64
-            # env: x86_64
-            # arch: x86_64
-            # configuration: Debug
-            # compiler: gcc
-          # - msys: CLANG64
-            # env: clang-x86_64
-            # arch: x86_64
-            # configuration: Release
-            # compiler: clang
+          - msys: MINGW64
+            env: x86_64
+            arch: x86_64
+            configuration: Debug
+            compiler: gcc
+          - msys: CLANG64
+            env: clang-x86_64
+            arch: x86_64
+            configuration: Release
+            compiler: clang
 
     name: ${{ matrix.msys }} - ${{ matrix.configuration }}
 
