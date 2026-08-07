@@ -13,7 +13,6 @@ env:
 
 jobs:
   before_build:
-
     runs-on: windows-latest
     outputs:
       result: ${{ steps.filter.outputs.result }}
@@ -30,73 +29,68 @@ jobs:
     - name: Commit filtering
       id: filter
       run: |
+
         $allowMaster = $true
         $folders_onejob = "PowerEditor/(Test|(installer/(filesForTesting|functionList)))/"
         $folders_nowork = "\.github/ISSUE_TEMPLATE"
         $files_nowork = "md|txt|log|ini"
         $files_needwork = "CMakeLists\.txt"
 
-        $matrix_all = 'matrix={"build_configuration": ["Release"], "build_platform": ["x64"]}'
-        # $matrix_onejob = 'matrix={"build_configuration": ["Debug"], "build_platform": ["Win32"]}'
-        Write-Output $matrix_all >> $env:GITHUB_OUTPUT
+        $matrix_all = '{"build_configuration": ["Release"], "build_platform": ["x64"]}'
+        $matrix_onejob = '{"build_configuration": ["Debug"], "build_platform": ["Win32"]}'
 
-        $isPush = "${{github.event_name }}" -eq "push" ? $true : $false
-        $isMaster = $isPush -and $${{ github.ref_name == github.event.repository.master_branch }}
+        $isPush = "${{ github.event_name }}" -eq "push" ? $true : $false
+        $isMasterBranch = "${{ github.ref_name == github.event.repository.master_branch }}" -eq "true"
+        $isMaster = $isPush -and $isMasterBranch
 
         $commit_message = $isPush ? (git show -s --format=%B) : (git log -1 --no-merges --pretty=%B)
-        $commit_title = ($commit_message -split "[\r\n]+")[0]
+        $commit_title = ($commit_message -split "[\r\n]+")
         Write-Output "title=$commit_title" >> $env:GITHUB_OUTPUT
-        $files_modified = @(git diff --name-only HEAD~1)
+
+        $files_modified = @(git diff --name-only HEAD~1 2>$null)
+        if ($files_modified.Length -eq 0) { $files_modified = @() }
+
         $files_needwork_all = @($files_modified | Where-Object {$_ -notmatch "\.(xml|$files_nowork)$|$folders_nowork|$folders_onejob" -or $_ -match "($files_needwork)$"})
 
-        if ($allowMaster -or !$isMaster) {
-            if ($commit_title -match "\[force all\]") {
-              Write-Output "Run standard jobs"
-            }
-            elseif ($commit_title -match "\[force one\]") {
-              Write-Output "Run only one Win32/Debug job"
-              Write-Output "result=ONEJOB" >> $env:GITHUB_OUTPUT
-              Write-Output $matrix_onejob >> $env:GITHUB_OUTPUT
-            }
-            elseif (($files_modified.length -gt 0 -and $files_needwork_all.length -eq 0) -or $commit_title -match "\[force (xml|none)\]") {
-                if (@($files_modified | Where-Object {$_ -notmatch "\.($files_nowork)$|$folders_nowork"}).length -eq 0 -or $commit_title -match "\[force none\]") {
-                    Write-Output "Changed files on this commit don't require any additional tasks.`n"
-                    Write-Output "result=OK" >> $env:GITHUB_OUTPUT
-                    Write-Output "PYTHON_ALLOW_CACHE=false" >> $env:GITHUB_ENV
-                    Exit
-                }
-                else {
-                    Write-Output "Run only XML validation step"
-                    if (@($files_modified | Where-Object {$_ -match $folders_onejob}).length -eq 0) {
-                        Write-Output "result=XML" >> $env:GITHUB_OUTPUT
-                    }
-                    else {
-                      Write-Output "Run only one Win32/Debug job"
-                      Write-Output "result=ONEJOB" >> $env:GITHUB_OUTPUT
-                      Write-Output $matrix_onejob >> $env:GITHUB_OUTPUT
-                    }
 
-                }
+        if ($commit_title -match "\[force one\]") {
+            Write-Output "result=ONEJOB" >> $env:GITHUB_OUTPUT
+            Write-Output "matrix=$matrix_onejob" >> $env:GITHUB_OUTPUT
+        }
+        elseif (($files_modified.length -gt 0 -and $files_needwork_all.length -eq 0) -or $commit_title -match "\[force (xml|none)\]") {
+            if (@($files_modified | Where-Object {$_ -notmatch "\.($files_nowork)$|$folders_nowork"}).length -eq 0 -or $commit_title -match "\[force none\]") {
+                Write-Output "result=OK" >> $env:GITHUB_OUTPUT
+                Write-Output "matrix=$matrix_all" >> $env:GITHUB_OUTPUT
+                Write-Output "PYTHON_ALLOW_CACHE=false" >> $env:GITHUB_ENV
             }
             else {
-              Write-Output "Run standard jobs"
+                if (@($files_modified | Where-Object {$_ -match $folders_onejob}).length -eq 0) {
+                    Write-Output "result=XML" >> $env:GITHUB_OUTPUT
+                    Write-Output "matrix=$matrix_all" >> $env:GITHUB_OUTPUT
+                }
+                else {
+                    Write-Output "result=ONEJOB" >> $env:GITHUB_OUTPUT
+                    Write-Output "matrix=$matrix_onejob" >> $env:GITHUB_OUTPUT
+                }
             }
         }
         else {
-          Write-Output "Run standard jobs"
+            Write-Output "result=" >> $env:GITHUB_OUTPUT
+            Write-Output "matrix=$matrix_all" >> $env:GITHUB_OUTPUT
         }
 
         if ($commit_title -match "\[force nopythoncache\]") {
           $env:PYTHON_ALLOW_CACHE = "false"
           Write-Output "PYTHON_ALLOW_CACHE=false" >> $env:GITHUB_ENV
         }
+
         if ($Env:PYTHON_ALLOW_CACHE -eq "true") {
-          $python = ((python -V) -split " ")[1]
-          $requests = (Invoke-RestMethod https://pypi.org/pypi/requests/json).info.version
-          $rfc3987 = (Invoke-RestMethod https://pypi.org/pypi/rfc3987/json).info.version
-          $pywin32 = (Invoke-RestMethod https://pypi.org/pypi/pywin32/json).info.version
-          $lxml = (Invoke-RestMethod https://pypi.org/pypi/lxml/json).info.version
-          $key = "${{ runner.os }}-python_$python-requests_$requests-rfc3987_$rfc3987-pywin32_$pywin32-lxml_$lxml"
+          $python = ((python -V) -split " ")
+          $requests = (Invoke-RestMethod https://pypi.org).info.version
+          $rfc3987 = (Invoke-RestMethod https://pypi.org).info.version
+          $pywin32 = (Invoke-RestMethod https://pypi.org).info.version
+          $lxml = (Invoke-RestMethod https://pypi.org).info.version
+          $key = "Windows-python_$python-requests_$requests-rfc3987_$rfc3987-pywin32_$pywin32-lxml_$lxml"
           Write-Output "python=$key" >> $env:GITHUB_OUTPUT
         }
 
@@ -151,7 +145,10 @@ jobs:
 
     runs-on: windows-latest
     needs: before_build
-    if: needs.before_build.outputs.result == '' || needs.before_build.outputs.result == 'ONEJOB'
+    if: |
+      needs.before_build.outputs.result == '' ||
+      needs.before_build.outputs.result == 'ONEJOB' ||
+      needs.before_build.outputs.result == null
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.before_build.outputs.matrix) }}
