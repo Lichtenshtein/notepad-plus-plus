@@ -258,7 +258,14 @@
 #define IDI_VIEW_MONITORING_DIS_ICON_DM2  396
 #define IDI_VIEW_DOCLIST_ICON_DM2         397
 
+//
+// FIND AND REPLACE DIALOG - Dark Mode
+//
 
+#define IDI_FIND_FILTER_ICON_DM         398
+#define IDI_FIND_FOLDER_ICON_DM      399
+#define IDI_FIND_REPLACE_ICON_DM     400
+#define IDI_FIND_SEARCH_ICON_DM      401
 
 #define IDI_SAVED_ICON           501
 #define IDI_UNSAVED_ICON         502

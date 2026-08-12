@@ -221,6 +221,15 @@ IDI_VIEW_MONITORING_ICON_DM        ICON      "icons/dark/toolbar/regular/monitor
 IDI_VIEW_MONITORING_DIS_ICON_DM    ICON      "icons/dark/toolbar/regular/monitoring_dis.ico"
 
 //
+// FIND AND REPLACE DIALOG - Dark Mode
+//
+
+IDI_FIND_FILTER_ICON_DM         ICON      "icons/find_dlg/FILTER.ico"
+IDI_FIND_FOLDER_ICON_DM      ICON      "icons/find_dlg/FOLDER.ico"
+IDI_FIND_REPLACE_ICON_DM     ICON      "icons/find_dlg/REPLACE.ico"
+IDI_FIND_SEARCH_ICON_DM      ICON      "icons/find_dlg/SEARCH.ico"
+
+//
 // TOOLBAR ICO - set 2 Dark Mode
 //
 IDI_NEW_ICON_DM2                   ICON      "icons/dark/toolbar/filled/new_off.ico"

@@ -1304,11 +1304,23 @@ void FindReplaceDlg::resizeDialogElements()
 	getMappedChildRect(hSelGrpb, rcSelGrpb);
 	hdwp = setOrDeferWindowPos(hdwp, hSelGrpb, nullptr, rcSelCheck.left - (gap * 3) / 2, rcSelGrpb.top, 0, 0, SWP_NOSIZE | flags);
 
+	RECT rcTransGrpbTmp{};
+	HWND hTransGrpbTmp = ::GetDlgItem(_hSelf, IDC_TRANSPARENT_GRPBOX);
+	getMappedChildRect(hTransGrpbTmp, rcTransGrpbTmp);
+
+	RECT rcTransCheckTmp{};
+	HWND hTransCheckTmp = ::GetDlgItem(_hSelf, IDC_TRANSPARENT_CHECK);
+	getMappedChildRect(hTransCheckTmp, rcTransCheckTmp);
+
+	const int gapTransTmp = rcTransGrpbTmp.left - rcTransCheckTmp.left;
+	const int targetTransGrpbLeft = rc2ModeCheck.left - gap - (rcTransGrpbTmp.right - rcTransGrpbTmp.left);
+	const int targetTransparencyX = targetTransGrpbLeft - gapTransTmp;
+
 	for (int moveWndID : moveCheckIds)
 	{
 		HWND moveHwnd = ::GetDlgItem(_hSelf, moveWndID);
 		getMappedChildRect(moveHwnd, rcTmp);
-		hdwp = setOrDeferWindowPos(hdwp, moveHwnd, nullptr, rcOkBtn.left + gap / 2, rcTmp.top, 0, 0, SWP_NOSIZE | flags);
+		hdwp = setOrDeferWindowPos(hdwp, moveHwnd, nullptr, targetTransparencyX, rcTmp.top, 0, 0, SWP_NOSIZE | flags);
 	}
 
 	for (int moveWndID : moveBtnIDs)
@@ -1658,6 +1670,30 @@ intptr_t CALLBACK FindReplaceDlg::run_dlgProc(UINT message, WPARAM wParam, LPARA
 			// Make "˄" & "˅" look better
 			_hCourrierNewFont = createFont(L"Courier New", 12, false, _hSelf);
 			::SendDlgItemMessage(_hSelf, IDD_RESIZE_TOGGLE_BUTTON, WM_SETFONT, reinterpret_cast<WPARAM>(_hCourrierNewFont), MAKELPARAM(TRUE, 0));
+
+			const int controlIds[]  = { IDC_STATIC_SEARCH_ICON, IDC_STATIC_REPLACE_ICON, IDC_STATIC_FILTER_ICON, IDC_STATIC_FOLDER_ICON };
+			const int resourceIds[] = { 401, 400, 398, 399 };
+
+			for (int i = 0; i < 4; ++i)
+			{
+				HWND hStaticCtrl = ::GetDlgItem(_hSelf, controlIds[i]);
+				if (hStaticCtrl != nullptr)
+				{
+
+					HICON hIcon = (HICON)::LoadImageW(
+						_hInst,
+						MAKEINTRESOURCEW(resourceIds[i]),
+						IMAGE_ICON,
+						16, 16,
+						LR_SHARED
+					);
+
+					if (hIcon != nullptr)
+					{
+						::SendMessageW(hStaticCtrl, STM_SETIMAGE, IMAGE_ICON, reinterpret_cast<LPARAM>(hIcon));
+					}
+				}
+			}
 
 			return TRUE;
 		}
@@ -4196,6 +4232,10 @@ void FindReplaceDlg::enableReplaceFunc(bool isEnable)
 
 	enableFindInFilesControls(false, false);
 	enableMarkAllControls(false);
+
+	showFindDlgItem(IDC_STATIC_SEARCH_ICON, true);
+	showFindDlgItem(IDC_STATIC_REPLACE_ICON, isEnable);
+
 	// replace controls
 	showFindDlgItem(ID_STATICTEXT_REPLACE, isEnable);
 	showFindDlgItem(IDREPLACE, isEnable);
@@ -4275,6 +4315,9 @@ void FindReplaceDlg::enableFindInFilesControls(bool isEnable, bool projectPanels
 	showFindDlgItem(IDC_REPLACEINSELECTION, !isEnable);
 	showFindDlgItem(IDREPLACEALL, !isEnable);
 	showFindDlgItem(IDC_REPLACE_OPENEDFILES, !isEnable);
+
+	showFindDlgItem(IDC_STATIC_FILTER_ICON, isEnable);
+	showFindDlgItem(IDC_STATIC_FOLDER_ICON, isEnable && (!projectPanels));
 
 	// Show Items
 	if (isEnable)
@@ -5342,6 +5385,8 @@ void FindReplaceDlg::enableFindInFilesFunc()
 {
 	enableFindInFilesControls(true, false);
 	_currentStatus = FINDINFILES_DLG;
+	showFindDlgItem(IDC_STATIC_SEARCH_ICON, true);
+	showFindDlgItem(IDC_STATIC_REPLACE_ICON, true);
 	gotoCorrectTab();
 	calcAndSetCtrlsPos(_currentStatus);
 	wchar_t label[MAX_PATH]{};
@@ -5356,6 +5401,8 @@ void FindReplaceDlg::enableFindInProjectsFunc()
 {
 	enableFindInFilesControls(true, true);
 	_currentStatus = FINDINPROJECTS_DLG;
+	showFindDlgItem(IDC_STATIC_SEARCH_ICON, true);
+	showFindDlgItem(IDC_STATIC_REPLACE_ICON, true);
 	gotoCorrectTab();
 	calcAndSetCtrlsPos(_currentStatus);
 	wchar_t label[MAX_PATH]{};
@@ -5372,6 +5419,9 @@ void FindReplaceDlg::enableMarkFunc()
 {
 	enableFindInFilesControls(false, false);
 	enableMarkAllControls(true);
+
+	showFindDlgItem(IDC_STATIC_SEARCH_ICON, true);
+	showFindDlgItem(IDC_STATIC_REPLACE_ICON, false);
 
 	// Replace controls to hide
 	showFindDlgItem(ID_STATICTEXT_REPLACE, false);
