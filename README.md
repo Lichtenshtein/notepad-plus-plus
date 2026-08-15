@@ -1,3 +1,7 @@
+Find/Replace dialog proto:
+
+![find_replace_dialog_proto](find_replace_proto.webp)
+
 What is Notepad++ ?
 ===================
 
