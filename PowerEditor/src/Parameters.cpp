@@ -7831,12 +7831,8 @@ void NppParameters::createXmlTreeFromGUIParams()
 		setBoolAttribute(GUIConfigElement, "enableFoldCmdToggable", _nppGUI._enableFoldCmdToggable);
 		setBoolAttribute(GUIConfigElement, "hideMenuRightShortcuts", _nppGUI._hideMenuRightShortcuts);
 		NppXml::setAttribute(GUIConfigElement, "networkPathWarningMethod", _nppGUI._networkPathWarningMethod);
-<<<<<<< HEAD
 		NppXml::setAttribute(GUIConfigElement, "isFawSymlinkAllowed", _nppGUI._isFawSymlinkAllowed);
-||||||| parent of 0d751ed0f (feat: restore RTL geometric mirroring for LTR text as optional preference)
-=======
 		setBoolAttribute(GUIConfigElement, "mirrorLTRInRTL", _nppGUI._mirrorLTRInRTL);
->>>>>>> 0d751ed0f (feat: restore RTL geometric mirroring for LTR text as optional preference)
 	}
 
 	// <GUIConfig name="Searching" monospacedFontFindDlg="no" fillFindFieldWithSelected="yes" fillFindFieldSelectCaret="yes"
